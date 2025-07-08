@@ -4,11 +4,11 @@ import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import {
   Search,
-  Plus,
-  Lightbulb,
+  Globe,
+  MessageSquare,
+  FileText,
   ArrowUp,
   Menu,
-  PenSquare,
   RefreshCcw,
   Copy,
   Share2,
@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
-type ActiveButton = "none" | "add" | "deepSearch" | "think"
+type ActiveButton = "none" | "search" | "ask" | "crawling" | "research"
 type MessageType = "user" | "system"
 
 interface Message {
@@ -69,11 +69,12 @@ export default function Chat() {
   const mainContainerRef = useRef<HTMLDivElement>(null)
   // Store selection state
   const selectionStateRef = useRef<{ start: number | null; end: number | null }>({ start: null, end: null })
+  const [isChatCentered, setIsChatCentered] = useState(true)
 
   // Constants for layout calculations to account for the padding values
   const HEADER_HEIGHT = 48 // 12px height + padding
   const INPUT_AREA_HEIGHT = 100 // Approximate height of input area with padding
-  const TOP_PADDING = 10 // pt-12 (3rem = 48px)
+  const TOP_PADDING = 48 // pt-12 (3rem = 48px)
   const BOTTOM_PADDING = 128 // pb-32 (8rem = 128px)
   const ADDITIONAL_OFFSET = 16 // Reduced offset for fine-tuning
 
@@ -254,15 +255,26 @@ export default function Chat() {
         if (currentIndex < words.length) {
           // Add a few words at a time
           const nextIndex = Math.min(currentIndex + CHUNK_SIZE, words.length)
-          const newWords = words.slice(currentIndex, nextIndex)
+          const newWordsArray = words.slice(currentIndex, nextIndex)
 
-          setStreamingWords((prev) => [
-            ...prev,
-            {
-              id: Date.now() + currentIndex,
-              text: newWords.join(" ") + " ",
-            },
-          ])
+          setStreamingWords((prev) => {
+            const newWords = [
+              ...prev,
+              {
+                id: Date.now() + currentIndex,
+                text: newWordsArray.join(" ") + " ",
+              },
+            ]
+
+            // Auto-scroll during streaming
+            setTimeout(() => {
+              if (messagesEndRef.current) {
+                messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
+              }
+            }, 10)
+
+            return newWords
+          })
 
           currentIndex = nextIndex
         } else {
@@ -381,6 +393,18 @@ export default function Chat() {
       // Add the message after resetting input
       setMessages((prev) => [...prev, newUserMessage])
 
+      // Scroll to bottom immediately after adding user message
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
+        }
+      }, 100)
+
+      // Move chat down on first message
+      if (isChatCentered) {
+        setIsChatCentered(false)
+      }
+
       // Only focus the textarea on desktop, not on mobile
       if (!isMobile) {
         focusTextarea()
@@ -410,6 +434,13 @@ export default function Chat() {
       handleSubmit(e)
     }
   }
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesEndRef.current && !isChatCentered) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
+    }
+  }, [messages, streamingWords, isChatCentered])
 
   const toggleButton = (button: ActiveButton) => {
     if (!isStreaming) {
@@ -497,16 +528,27 @@ export default function Chat() {
             <span className="sr-only">Menu</span>
           </Button>
 
-          <h1 className="text-base font-medium text-gray-800">v0 Chat</h1>
-
-          <Button variant="ghost" size="icon" className="rounded-full h-8 w-8">
-            <PenSquare className="h-5 w-5 text-gray-700" />
-            <span className="sr-only">New Chat</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" className="text-gray-700 hover:text-gray-900 px-3 py-1 h-8">
+              Sign In
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-gray-700 hover:text-gray-900 border-gray-300 px-3 py-1 h-8 bg-transparent"
+            >
+              Sign Up
+            </Button>
+          </div>
         </div>
       </header>
 
-      <div ref={chatContainerRef} className="flex-grow pb-32 pt-12 px-4 overflow-y-auto">
+      <div
+        className={cn(
+          "flex-grow px-4 overflow-y-auto transition-all duration-700 ease-in-out",
+          isChatCentered ? "pb-32 pt-12 opacity-0" : "pb-32 pt-12 opacity-100",
+        )}
+      >
         <div className="max-w-3xl mx-auto space-y-4">
           {messageSections.map((section, sectionIndex) => (
             <div
@@ -533,12 +575,29 @@ export default function Chat() {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-50">
+      {/* Centered AI Searcher Title - only show when chat is centered */}
+      <div
+        className={cn(
+          "absolute inset-0 flex items-center justify-center transition-all duration-700 ease-in-out z-10 pointer-events-none",
+          isChatCentered ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-8",
+        )}
+      >
+        <div className="text-center mb-32">
+          <h1 className="text-3xl font-bold text-gray-800 mb-20">Gotham</h1>
+        </div>
+      </div>
+
+      <div
+        className={cn(
+          "fixed left-0 right-0 p-4 bg-gray-50 transition-all duration-700 ease-in-out",
+          isChatCentered ? "bottom-1/2 translate-y-16" : "bottom-0 translate-y-0",
+        )}
+      >
         <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
           <div
             ref={inputContainerRef}
             className={cn(
-              "relative w-full rounded-3xl border border-gray-200 bg-white p-3 cursor-text",
+              "relative w-full rounded-3xl border border-gray-200 bg-white p-3 cursor-text shadow-lg",
               isStreaming && "opacity-80",
             )}
             onClick={handleInputContainerClick}
@@ -563,52 +622,218 @@ export default function Chat() {
             <div className="absolute bottom-3 left-3 right-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className={cn(
-                      "rounded-full h-8 w-8 flex-shrink-0 border-gray-200 p-0 transition-colors",
-                      activeButton === "add" && "bg-gray-100 border-gray-300",
-                    )}
-                    onClick={() => toggleButton("add")}
-                    disabled={isStreaming}
-                  >
-                    <Plus className={cn("h-4 w-4 text-gray-500", activeButton === "add" && "text-gray-700")} />
-                    <span className="sr-only">Add</span>
-                  </Button>
+                  <div className="relative group">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className={cn(
+                        "rounded-full h-8 w-8 flex-shrink-0 border-gray-200 p-0 transition-colors",
+                        activeButton === "search" && "bg-gray-100 border-gray-300",
+                      )}
+                      onClick={() => toggleButton("search")}
+                      disabled={isStreaming}
+                    >
+                      <Search className={cn("h-4 w-4 text-gray-500", activeButton === "search" && "text-gray-700")} />
+                      <span className="sr-only">Search</span>
+                    </Button>
+                    <div
+                      className={cn(
+                        "absolute left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50",
+                        isChatCentered ? "top-full mt-3" : "bottom-full mb-3",
+                      )}
+                    >
+                      <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-64">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                            <Search className="h-4 w-4 text-blue-600" />
+                          </div>
+                          <h3 className="font-semibold text-gray-900">Search</h3>
+                        </div>
+                        <p className="text-sm text-gray-600 leading-relaxed">
+                          Return results and their contents from across the web with comprehensive search capabilities.
+                        </p>
+                        <div
+                          className={cn(
+                            "absolute left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-transparent",
+                            isChatCentered
+                              ? "bottom-full border-b-4 border-b-white"
+                              : "top-full border-t-4 border-t-white",
+                          )}
+                        ></div>
+                        <div
+                          className={cn(
+                            "absolute left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-transparent",
+                            isChatCentered
+                              ? "bottom-full translate-y-px border-b-4 border-b-gray-200"
+                              : "top-full translate-y-px border-t-4 border-t-gray-200",
+                          )}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={cn(
-                      "rounded-full h-8 px-3 flex items-center border-gray-200 gap-1.5 transition-colors",
-                      activeButton === "deepSearch" && "bg-gray-100 border-gray-300",
-                    )}
-                    onClick={() => toggleButton("deepSearch")}
-                    disabled={isStreaming}
-                  >
-                    <Search className={cn("h-4 w-4 text-gray-500", activeButton === "deepSearch" && "text-gray-700")} />
-                    <span className={cn("text-gray-900 text-sm", activeButton === "deepSearch" && "font-medium")}>
-                      DeepSearch
-                    </span>
-                  </Button>
+                  <div className="relative group">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className={cn(
+                        "rounded-full h-8 w-8 flex-shrink-0 border-gray-200 p-0 transition-colors",
+                        activeButton === "ask" && "bg-gray-100 border-gray-300",
+                      )}
+                      onClick={() => toggleButton("ask")}
+                      disabled={isStreaming}
+                    >
+                      <MessageSquare
+                        className={cn("h-4 w-4 text-gray-500", activeButton === "ask" && "text-gray-700")}
+                      />
+                      <span className="sr-only">Ask</span>
+                    </Button>
+                    <div
+                      className={cn(
+                        "absolute left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50",
+                        isChatCentered ? "top-full mt-3" : "bottom-full mb-3",
+                      )}
+                    >
+                      <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-64">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                            <MessageSquare className="h-4 w-4 text-green-600" />
+                          </div>
+                          <h3 className="font-semibold text-gray-900">Ask</h3>
+                        </div>
+                        <p className="text-sm text-gray-600 leading-relaxed">
+                          Fast, web-grounded answers with real-time information and quick response times.
+                        </p>
+                        <div
+                          className={cn(
+                            "absolute left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-transparent",
+                            isChatCentered
+                              ? "bottom-full border-b-4 border-b-white"
+                              : "top-full border-t-4 border-t-white",
+                          )}
+                        ></div>
+                        <div
+                          className={cn(
+                            "absolute left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-transparent",
+                            isChatCentered
+                              ? "bottom-full translate-y-px border-b-4 border-b-gray-200"
+                              : "top-full translate-y-px border-t-4 border-t-gray-200",
+                          )}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={cn(
-                      "rounded-full h-8 px-3 flex items-center border-gray-200 gap-1.5 transition-colors",
-                      activeButton === "think" && "bg-gray-100 border-gray-300",
-                    )}
-                    onClick={() => toggleButton("think")}
-                    disabled={isStreaming}
-                  >
-                    <Lightbulb className={cn("h-4 w-4 text-gray-500", activeButton === "think" && "text-gray-700")} />
-                    <span className={cn("text-gray-900 text-sm", activeButton === "think" && "font-medium")}>
-                      Think
-                    </span>
-                  </Button>
+                  <div className="relative group">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className={cn(
+                        "rounded-full h-8 w-8 flex-shrink-0 border-gray-200 p-0 transition-colors",
+                        activeButton === "crawling" && "bg-gray-100 border-gray-300",
+                      )}
+                      onClick={() => toggleButton("crawling")}
+                      disabled={isStreaming}
+                    >
+                      <Globe className={cn("h-4 w-4 text-gray-500", activeButton === "crawling" && "text-gray-700")} />
+                      <span className="sr-only">Crawling</span>
+                    </Button>
+                    <div
+                      className={cn(
+                        "absolute left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50",
+                        isChatCentered ? "top-full mt-3" : "bottom-full mb-3",
+                      )}
+                    >
+                      <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-64">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                            <Globe className="h-4 w-4 text-purple-600" />
+                          </div>
+                          <h3 className="font-semibold text-gray-900">Crawling</h3>
+                        </div>
+                        <p className="text-sm text-gray-600 leading-relaxed">
+                          Returns webpage contents by crawling and extracting data from specific URLs and websites.
+                        </p>
+                        <div
+                          className={cn(
+                            "absolute left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-transparent",
+                            isChatCentered
+                              ? "bottom-full border-b-4 border-b-white"
+                              : "top-full border-t-4 border-t-white",
+                          )}
+                        ></div>
+                        <div
+                          className={cn(
+                            "absolute left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-transparent",
+                            isChatCentered
+                              ? "bottom-full translate-y-px border-b-4 border-b-gray-200"
+                              : "top-full translate-y-px border-t-4 border-t-gray-200",
+                          )}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="relative group">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className={cn(
+                        "rounded-full h-8 w-8 flex-shrink-0 border-gray-200 p-0 transition-colors",
+                        activeButton === "research" && "bg-gray-100 border-gray-300",
+                      )}
+                      onClick={() => toggleButton("research")}
+                      disabled={isStreaming}
+                    >
+                      <FileText
+                        className={cn("h-4 w-4 text-gray-500", activeButton === "research" && "text-gray-700")}
+                      />
+                      <span className="sr-only">Research</span>
+                    </Button>
+                    <div
+                      className={cn(
+                        "absolute left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50",
+                        isChatCentered ? "top-full mt-3" : "bottom-full mb-3",
+                      )}
+                    >
+                      <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-64">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                            <FileText className="h-4 w-4 text-orange-600" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-gray-900">Research</h3>
+                            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">
+                              BETA
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-600 leading-relaxed">
+                          Long-running research capabilities for comprehensive reports and structured outputs.
+                        </p>
+                        <div
+                          className={cn(
+                            "absolute left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-transparent",
+                            isChatCentered
+                              ? "bottom-full border-b-4 border-b-white"
+                              : "top-full border-t-4 border-t-white",
+                          )}
+                        ></div>
+                        <div
+                          className={cn(
+                            "absolute left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-transparent",
+                            isChatCentered
+                              ? "bottom-full translate-y-px border-b-4 border-b-gray-200"
+                              : "top-full translate-y-px border-t-4 border-t-gray-200",
+                          )}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <Button
