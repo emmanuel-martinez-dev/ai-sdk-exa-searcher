@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { askExa } from "@/actions/exa-actions/search-web"
 
 type ActiveButton = "none" | "search" | "ask" | "crawling" | "research"
 type MessageType = "user" | "system"
@@ -28,6 +29,8 @@ interface Message {
   type: MessageType
   completed?: boolean
   newSection?: boolean
+  searchResults?: any[] // Para almacenar resultados de Exa
+  error?: string
 }
 
 interface MessageSection {
@@ -43,9 +46,9 @@ interface StreamingWord {
   text: string
 }
 
-// Faster word delay for smoother streaming
-const WORD_DELAY = 40 // ms per word
-const CHUNK_SIZE = 2 // Number of words to add at once
+// Delay más rápido para streaming más fluido
+const WORD_DELAY = 40 // ms por palabra
+const CHUNK_SIZE = 2 // Número de palabras para agregar de una vez
 
 export default function Chat() {
   const [inputValue, setInputValue] = useState("")
@@ -67,28 +70,28 @@ export default function Chat() {
   const inputContainerRef = useRef<HTMLDivElement>(null)
   const shouldFocusAfterStreamingRef = useRef(false)
   const mainContainerRef = useRef<HTMLDivElement>(null)
-  // Store selection state
+  // Almacena el estado de selección del textarea
   const selectionStateRef = useRef<{ start: number | null; end: number | null }>({ start: null, end: null })
   const [isChatCentered, setIsChatCentered] = useState(true)
 
-  // Constants for layout calculations to account for the padding values
+  // Constantes para cálculos de layout considerando los valores de padding
   const HEADER_HEIGHT = 48 // 12px height + padding
-  const INPUT_AREA_HEIGHT = 100 // Approximate height of input area with padding
+  const INPUT_AREA_HEIGHT = 100 // Altura aproximada del área de input con padding
   const TOP_PADDING = 48 // pt-12 (3rem = 48px)
   const BOTTOM_PADDING = 128 // pb-32 (8rem = 128px)
-  const ADDITIONAL_OFFSET = 16 // Reduced offset for fine-tuning
+  const ADDITIONAL_OFFSET = 16 // Offset reducido para ajuste fino
 
-  // Check if device is mobile and get viewport height
+  // Detecta si es móvil y obtiene la altura del viewport
   useEffect(() => {
     const checkMobileAndViewport = () => {
       const isMobileDevice = window.innerWidth < 768
       setIsMobile(isMobileDevice)
 
-      // Capture the viewport height
+      // Captura la altura del viewport
       const vh = window.innerHeight
       setViewportHeight(vh)
 
-      // Apply fixed height to main container on mobile
+      // Aplica altura fija al contenedor principal en móvil
       if (isMobileDevice && mainContainerRef.current) {
         mainContainerRef.current.style.height = `${vh}px`
       }
@@ -96,12 +99,12 @@ export default function Chat() {
 
     checkMobileAndViewport()
 
-    // Set initial height
+    // Establece altura inicial
     if (mainContainerRef.current) {
       mainContainerRef.current.style.height = isMobile ? `${viewportHeight}px` : "100svh"
     }
 
-    // Update on resize
+    // Actualiza en resize
     window.addEventListener("resize", checkMobileAndViewport)
 
     return () => {
@@ -109,7 +112,7 @@ export default function Chat() {
     }
   }, [isMobile, viewportHeight])
 
-  // Organize messages into sections
+  // Organiza mensajes en secciones
   useEffect(() => {
     if (messages.length === 0) {
       setMessageSections([])
@@ -127,16 +130,16 @@ export default function Chat() {
 
     messages.forEach((message) => {
       if (message.newSection) {
-        // Start a new section
+        // Inicia una nueva sección
         if (currentSection.messages.length > 0) {
-          // Mark previous section as inactive
+          // Marca la sección anterior como inactiva
           sections.push({
             ...currentSection,
             isActive: false,
           })
         }
 
-        // Create new active section
+        // Crea nueva sección activa
         const newSectionId = `section-${Date.now()}-${sections.length}`
         currentSection = {
           id: newSectionId,
@@ -146,15 +149,15 @@ export default function Chat() {
           sectionIndex: sections.length,
         }
 
-        // Update active section ID
+        // Actualiza ID de sección activa
         setActiveSectionId(newSectionId)
       } else {
-        // Add to current section
+        // Agrega a la sección actual
         currentSection.messages.push(message)
       }
     })
 
-    // Add the last section if it has messages
+    // Agrega la última sección si tiene mensajes
     if (currentSection.messages.length > 0) {
       sections.push(currentSection)
     }
@@ -162,14 +165,14 @@ export default function Chat() {
     setMessageSections(sections)
   }, [messages])
 
-  // Scroll to maximum position when new section is created, but only for sections after the first
+  // Scroll a posición máxima cuando se crea nueva sección, solo para secciones después de la primera
   useEffect(() => {
     if (messageSections.length > 1) {
       setTimeout(() => {
         const scrollContainer = chatContainerRef.current
 
         if (scrollContainer) {
-          // Scroll to maximum possible position
+          // Scroll a posición máxima posible
           scrollContainer.scrollTo({
             top: scrollContainer.scrollHeight,
             behavior: "smooth",
@@ -179,14 +182,14 @@ export default function Chat() {
     }
   }, [messageSections])
 
-  // Focus the textarea on component mount (only on desktop)
+  // Enfoca el textarea al montar el componente (solo en desktop)
   useEffect(() => {
     if (textareaRef.current && !isMobile) {
       textareaRef.current.focus()
     }
   }, [isMobile])
 
-  // Set focus back to textarea after streaming ends (only on desktop)
+  // Devuelve el foco al textarea después de que termina el streaming (solo en desktop)
   useEffect(() => {
     if (!isStreaming && shouldFocusAfterStreamingRef.current && !isMobile) {
       focusTextarea()
@@ -194,13 +197,13 @@ export default function Chat() {
     }
   }, [isStreaming, isMobile])
 
-  // Calculate available content height (viewport minus header and input)
+  // Calcula la altura de contenido disponible (viewport menos header e input)
   const getContentHeight = () => {
-    // Calculate available height by subtracting the top and bottom padding from viewport height
+    // Calcula altura disponible restando el padding superior e inferior del viewport height
     return viewportHeight - TOP_PADDING - BOTTOM_PADDING - ADDITIONAL_OFFSET
   }
 
-  // Save the current selection state
+  // Guarda el estado de selección actual
   const saveSelectionState = () => {
     if (textareaRef.current) {
       selectionStateRef.current = {
@@ -210,17 +213,17 @@ export default function Chat() {
     }
   }
 
-  // Restore the saved selection state
+  // Restaura el estado de selección guardado
   const restoreSelectionState = () => {
     const textarea = textareaRef.current
     const { start, end } = selectionStateRef.current
 
     if (textarea && start !== null && end !== null) {
-      // Focus first, then set selection range
+      // Enfoca primero, luego establece el rango de selección
       textarea.focus()
       textarea.setSelectionRange(start, end)
     } else if (textarea) {
-      // If no selection was saved, just focus
+      // Si no hay selección guardada, solo enfoca
       textarea.focus()
     }
   }
@@ -232,7 +235,7 @@ export default function Chat() {
   }
 
   const handleInputContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Only focus if clicking directly on the container, not on buttons or other interactive elements
+    // Solo enfoca si hace clic directamente en el contenedor, no en botones u otros elementos interactivos
     if (
       e.target === e.currentTarget ||
       (e.currentTarget === inputContainerRef.current && !(e.target as HTMLElement).closest("button"))
@@ -244,7 +247,7 @@ export default function Chat() {
   }
 
   const simulateTextStreaming = async (text: string) => {
-    // Split text into words
+    // Divide el texto en palabras
     const words = text.split(" ")
     let currentIndex = 0
     setStreamingWords([])
@@ -253,7 +256,7 @@ export default function Chat() {
     return new Promise<void>((resolve) => {
       const streamInterval = setInterval(() => {
         if (currentIndex < words.length) {
-          // Add a few words at a time
+          // Agrega algunas palabras a la vez
           const nextIndex = Math.min(currentIndex + CHUNK_SIZE, words.length)
           const newWordsArray = words.slice(currentIndex, nextIndex)
 
@@ -266,7 +269,7 @@ export default function Chat() {
               },
             ]
 
-            // Auto-scroll during streaming
+            // Auto-scroll durante el streaming
             setTimeout(() => {
               if (messagesEndRef.current) {
                 messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
@@ -285,24 +288,48 @@ export default function Chat() {
     })
   }
 
-  const getAIResponse = (userMessage: string) => {
-    const responses = [
-      `That's an interesting perspective. Let me elaborate on that a bit further. When we consider the implications of what you've shared, several key points come to mind. First, it's important to understand the context and how it relates to broader concepts. This allows us to develop a more comprehensive understanding of the situation. Would you like me to explore any specific aspect of this in more detail?`,
+  // Función para formatear los resultados de Exa en texto legible
+  const formatExaResults = (results: any[]) => {
+    if (!results || results.length === 0) {
+      return "No se encontraron resultados para tu búsqueda."
+    }
 
-      `I appreciate you sharing that. From what I understand, there are multiple layers to consider here. The initial aspect relates to the fundamental principles we're discussing, but there's also a broader context to consider. This reminds me of similar scenarios where the underlying patterns reveal interesting connections. What aspects of this would you like to explore further?`,
+    let formattedText = `Encontré ${results.length} resultado${results.length > 1 ? 's' : ''} relevante${results.length > 1 ? 's' : ''}:\n\n`
 
-      `Thank you for bringing this up. It's a fascinating topic that deserves careful consideration. When we analyze the details you've provided, we can identify several important elements that contribute to our understanding. This kind of discussion often leads to valuable insights and new perspectives. Is there a particular element you'd like me to focus on?`,
+    results.forEach((result, index) => {
+      formattedText += `${index + 1}. **${result.title}**\n`
+      
+      if (result.author) {
+        formattedText += `   Autor: ${result.author}\n`
+      }
+      
+      if (result.publishedDate) {
+        const date = new Date(result.publishedDate).toLocaleDateString('es-AR')
+        formattedText += `   Fecha: ${date}\n`
+      }
+      
+      if (result.summary) {
+        formattedText += `   Resumen: ${result.summary}\n`
+      } else if (result.text) {
+        // Si no hay resumen, usa los primeros 200 caracteres del texto
+        const preview = result.text.substring(0, 200) + (result.text.length > 200 ? '...' : '')
+        formattedText += `   Contenido: ${preview}\n`
+      }
+      
+      formattedText += `   URL: ${result.url}\n`
+      
+      if (result.score) {
+        formattedText += `   Relevancia: ${(result.score * 100).toFixed(1)}%\n`
+      }
+      
+      formattedText += '\n'
+    })
 
-      `Your message raises some compelling points. Let's break this down systematically to better understand the various components involved. There are several key factors to consider, each contributing to the overall picture in unique ways. This kind of analysis often reveals interesting patterns and connections that might not be immediately apparent. What specific aspects would you like to delve into?`,
-    ]
-
-    return responses[Math.floor(Math.random() * responses.length)]
+    return formattedText
   }
 
-  const simulateAIResponse = async (userMessage: string) => {
-    const response = getAIResponse(userMessage)
-
-    // Create a new message with empty content
+  const handleExaSearch = async (userMessage: string) => {
+    // Crea un nuevo mensaje con contenido vacío
     const messageId = Date.now().toString()
     setStreamingMessageId(messageId)
 
@@ -315,27 +342,65 @@ export default function Chat() {
       },
     ])
 
-    // Add a delay before the second vibration
+    // Agrega vibración cuando comienza el streaming
     setTimeout(() => {
-      // Add vibration when streaming begins
       navigator.vibrate(50)
-    }, 200) // 200ms delay to make it distinct from the first vibration
+    }, 200)
 
-    // Stream the text
-    await simulateTextStreaming(response)
+    try {
+      // Llama a la API de Exa
+      const exaResponse = await askExa(userMessage)
+      
+      // Formatea los resultados
+      const formattedResponse = formatExaResults(exaResponse.results)
+      
+      // Hace streaming del texto formateado
+      await simulateTextStreaming(formattedResponse)
 
-    // Update with complete message
-    setMessages((prev) =>
-      prev.map((msg) => (msg.id === messageId ? { ...msg, content: response, completed: true } : msg)),
-    )
+      // Actualiza con el mensaje completo incluyendo los resultados originales
+      setMessages((prev) =>
+        prev.map((msg) => 
+          msg.id === messageId 
+            ? { 
+                ...msg, 
+                content: formattedResponse, 
+                completed: true,
+                searchResults: exaResponse.results 
+              } 
+            : msg
+        ),
+      )
 
-    // Add to completed messages set to prevent re-animation
+      // Agrega vibración cuando termina el streaming
+      navigator.vibrate(50)
+
+    } catch (error) {
+      console.error('Error al buscar en Exa:', error)
+      
+      const errorMessage = "Lo siento, hubo un error al realizar la búsqueda. Por favor, intentá de nuevo."
+      
+      // Hace streaming del mensaje de error
+      await simulateTextStreaming(errorMessage)
+      
+      // Actualiza con el mensaje de error
+      setMessages((prev) =>
+        prev.map((msg) => 
+          msg.id === messageId 
+            ? { 
+                ...msg, 
+                content: errorMessage, 
+                completed: true,
+                error: error instanceof Error ? error.message : 'Error desconocido'
+              } 
+            : msg
+        ),
+      )
+    }
+
+    // Agrega a mensajes completados para prevenir re-animación
     setCompletedMessages((prev) => new Set(prev).add(messageId))
 
-    // Add vibration when streaming ends
-    navigator.vibrate(50)
-
-    // Reset streaming state
+    // Resetea estado de streaming
     setStreamingWords([])
     setStreamingMessageId(null)
     setIsStreaming(false)
@@ -344,7 +409,7 @@ export default function Chat() {
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value
 
-    // Only allow input changes when not streaming
+    // Solo permite cambios de input cuando no está haciendo streaming
     if (!isStreaming) {
       setInputValue(newValue)
 
@@ -366,12 +431,12 @@ export default function Chat() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (inputValue.trim() && !isStreaming) {
-      // Add vibration when message is submitted
+      // Agrega vibración cuando se envía el mensaje
       navigator.vibrate(50)
 
       const userMessage = inputValue.trim()
 
-      // Add as a new section if messages already exist
+      // Agrega como nueva sección si ya existen mensajes
       const shouldAddNewSection = messages.length > 0
 
       const newUserMessage = {
@@ -381,7 +446,7 @@ export default function Chat() {
         newSection: shouldAddNewSection,
       }
 
-      // Reset input before starting the AI response
+      // Resetea input antes de comenzar la respuesta de la IA
       setInputValue("")
       setHasTyped(false)
       setActiveButton("none")
@@ -390,52 +455,52 @@ export default function Chat() {
         textareaRef.current.style.height = "auto"
       }
 
-      // Add the message after resetting input
+      // Agrega el mensaje después de resetear el input
       setMessages((prev) => [...prev, newUserMessage])
 
-      // Scroll to bottom immediately after adding user message
+      // Scroll al final inmediatamente después de agregar mensaje de usuario
       setTimeout(() => {
         if (messagesEndRef.current) {
           messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
         }
       }, 100)
 
-      // Move chat down on first message
+      // Mueve el chat hacia abajo en el primer mensaje
       if (isChatCentered) {
         setIsChatCentered(false)
       }
 
-      // Only focus the textarea on desktop, not on mobile
+      // Solo enfoca el textarea en desktop, no en móvil
       if (!isMobile) {
         focusTextarea()
       } else {
-        // On mobile, blur the textarea to dismiss the keyboard
+        // En móvil, desenfoca el textarea para ocultar el teclado
         if (textareaRef.current) {
           textareaRef.current.blur()
         }
       }
 
-      // Start AI response
-      simulateAIResponse(userMessage)
+      // Inicia búsqueda en Exa
+      handleExaSearch(userMessage)
     }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Handle Cmd+Enter on both mobile and desktop
+    // Maneja Cmd+Enter tanto en móvil como en desktop
     if (!isStreaming && e.key === "Enter" && e.metaKey) {
       e.preventDefault()
       handleSubmit(e)
       return
     }
 
-    // Only handle regular Enter key (without Shift) on desktop
+    // Solo maneja Enter normal (sin Shift) en desktop
     if (!isStreaming && !isMobile && e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       handleSubmit(e)
     }
   }
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll al final cuando cambian los mensajes
   useEffect(() => {
     if (messagesEndRef.current && !isChatCentered) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
@@ -444,12 +509,12 @@ export default function Chat() {
 
   const toggleButton = (button: ActiveButton) => {
     if (!isStreaming) {
-      // Save the current selection state before toggling
+      // Guarda el estado de selección actual antes de cambiar
       saveSelectionState()
 
       setActiveButton((prev) => (prev === button ? "none" : button))
 
-      // Restore the selection state after toggling
+      // Restaura el estado de selección después de cambiar
       setTimeout(() => {
         restoreSelectionState()
       }, 0)
@@ -467,14 +532,31 @@ export default function Chat() {
             message.type === "user" ? "bg-white border border-gray-200 rounded-br-none" : "text-gray-900",
           )}
         >
-          {/* For user messages or completed system messages, render without animation */}
+          {/* Para mensajes de usuario o mensajes del sistema completados, renderiza sin animación */}
           {message.content && (
-            <span className={message.type === "system" && !isCompleted ? "animate-fade-in" : ""}>
-              {message.content}
-            </span>
+            <div className={message.type === "system" && !isCompleted ? "animate-fade-in" : ""}>
+              {/* Renderiza el contenido formateado */}
+              {message.content.split('\n').map((line, index) => {
+                if (line.trim() === '') return <br key={index} />
+                
+                // Maneja texto en negrita
+                if (line.includes('**')) {
+                  const parts = line.split('**')
+                  return (
+                    <div key={index} className="mb-1">
+                      {parts.map((part, partIndex) => 
+                        partIndex % 2 === 1 ? <strong key={partIndex}>{part}</strong> : part
+                      )}
+                    </div>
+                  )
+                }
+                
+                return <div key={index} className="mb-1">{line}</div>
+              })}
+            </div>
           )}
 
-          {/* For streaming messages, render with animation */}
+          {/* Para mensajes en streaming, renderiza con animación */}
           {message.id === streamingMessageId && (
             <span className="inline">
               {streamingWords.map((word) => (
@@ -486,7 +568,7 @@ export default function Chat() {
           )}
         </div>
 
-        {/* Message actions */}
+        {/* Acciones de mensaje */}
         {message.type === "system" && message.completed && (
           <div className="flex items-center gap-2 px-4 mt-1 mb-2">
             <button className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -510,7 +592,7 @@ export default function Chat() {
     )
   }
 
-  // Determine if a section should have fixed height (only for sections after the first)
+  // Determina si una sección debe tener altura fija (solo para secciones después de la primera)
   const shouldApplyHeight = (sectionIndex: number) => {
     return sectionIndex > 0
   }
@@ -575,7 +657,7 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* Centered AI Searcher Title - only show when chat is centered */}
+      {/* Título centrado de AI Searcher - solo se muestra cuando el chat está centrado */}
       <div
         className={cn(
           "absolute inset-0 flex items-center justify-center transition-all duration-700 ease-in-out z-10 pointer-events-none",
@@ -605,13 +687,13 @@ export default function Chat() {
             <div className="pb-9">
               <Textarea
                 ref={textareaRef}
-                placeholder={isStreaming ? "Waiting for response..." : "Ask Anything"}
+                placeholder={isStreaming ? "Buscando en Exa..." : "Preguntá lo que quieras"}
                 className="min-h-[24px] max-h-[160px] w-full rounded-3xl border-0 bg-transparent text-gray-900 placeholder:text-gray-400 placeholder:text-base focus-visible:ring-0 focus-visible:ring-offset-0 text-base pl-2 pr-4 pt-0 pb-0 resize-none overflow-y-auto leading-tight"
                 value={inputValue}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 onFocus={() => {
-                  // Ensure the textarea is scrolled into view when focused
+                  // Asegura que el textarea esté visible cuando se enfoca
                   if (textareaRef.current) {
                     textareaRef.current.scrollIntoView({ behavior: "smooth", block: "center" })
                   }
@@ -648,10 +730,10 @@ export default function Chat() {
                           <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
                             <Search className="h-4 w-4 text-blue-600" />
                           </div>
-                          <h3 className="font-semibold text-gray-900">Search</h3>
+                          <h3 className="font-semibold text-gray-900">Búsqueda</h3>
                         </div>
                         <p className="text-sm text-gray-600 leading-relaxed">
-                          Return results and their contents from across the web with comprehensive search capabilities.
+                          Devuelve resultados y su contenido desde toda la web con capacidades de búsqueda inteligente.
                         </p>
                         <div
                           className={cn(
@@ -701,10 +783,10 @@ export default function Chat() {
                           <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
                             <MessageSquare className="h-4 w-4 text-green-600" />
                           </div>
-                          <h3 className="font-semibold text-gray-900">Ask</h3>
+                          <h3 className="font-semibold text-gray-900">Preguntar</h3>
                         </div>
                         <p className="text-sm text-gray-600 leading-relaxed">
-                          Fast, web-grounded answers with real-time information and quick response times.
+                          Respuestas rápidas con información en tiempo real y tiempos de respuesta optimizados.
                         </p>
                         <div
                           className={cn(
@@ -755,7 +837,7 @@ export default function Chat() {
                           <h3 className="font-semibold text-gray-900">Crawling</h3>
                         </div>
                         <p className="text-sm text-gray-600 leading-relaxed">
-                          Returns webpage contents by crawling and extracting data from specific URLs and websites.
+                          Devuelve contenido de páginas web específicas extrayendo datos de URLs particulares.
                         </p>
                         <div
                           className={cn(
@@ -806,14 +888,14 @@ export default function Chat() {
                             <FileText className="h-4 w-4 text-orange-600" />
                           </div>
                           <div>
-                            <h3 className="font-semibold text-gray-900">Research</h3>
+                            <h3 className="font-semibold text-gray-900">Investigación</h3>
                             <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">
                               BETA
                             </span>
                           </div>
                         </div>
                         <p className="text-sm text-gray-600 leading-relaxed">
-                          Long-running research capabilities for comprehensive reports and structured outputs.
+                          Capacidades de investigación profunda para reportes completos y resultados estructurados.
                         </p>
                         <div
                           className={cn(
