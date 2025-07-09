@@ -318,10 +318,6 @@ export default function Chat() {
       
       formattedText += `   URL: ${result.url}\n`
       
-      if (result.score) {
-        formattedText += `   Relevancia: ${(result.score * 100).toFixed(1)}%\n`
-      }
-      
       formattedText += '\n'
     })
 
@@ -351,7 +347,7 @@ export default function Chat() {
       // Llama a la API de Exa
       const exaResponse = await askExa(userMessage)
       
-      // Formatea los resultados
+      // Formatea los resultados usando la nueva estructura results
       const formattedResponse = formatExaResults(exaResponse.results)
       
       // Hace streaming del texto formateado
