@@ -3,64 +3,31 @@
 import { getLastYearDate, getCurrentDate } from "@/lib/utils/index";
 
 interface ExaSearchResult {
+    id: string;
     title: string;
     url: string;
     publishedDate: string;
     author: string;
-    score: number;
-    id: string;
+    text?: string;
+    summary?: string;
     image?: string;
     favicon?: string;
-    text?: string;
-    highlights?: string[];
-    highlightScores?: number[];
-    summary?: string;
-    subpages?: Array<{
-        id: string;
-        url: string;
-        title: string;
-        author: string;
-        publishedDate: string;
-        text: string;
-        summary: string;
-        highlights: string[];
-        highlightScores: number[];
-    }>;
-    extras?: {
-        links: string[];
-    };
 }
 
 interface ExaSearchResponse {
     requestId: string;
+    autopromptString: string;
     resolvedSearchType: string;
     results: ExaSearchResult[];
-    searchType: string;
-    context?: string;
+    searchTime: number;
     costDollars: {
         total: number;
-        breakDown: Array<{
-            search: number;
-            contents: number;
-            breakdown: {
-                keywordSearch: number;
-                neuralSearch: number;
-                contentText: number;
-                contentHighlight: number;
-                contentSummary: number;
-            };
-        }>;
-        perRequestPrices: {
-            neuralSearch_1_25_results: number;
-            neuralSearch_26_100_results: number;
-            neuralSearch_100_plus_results: number;
-            keywordSearch_1_100_results: number;
-            keywordSearch_100_plus_results: number;
+        search: {
+            neural: number;
         };
-        perPagePrices: {
-            contentText: number;
-            contentHighlight: number;
-            contentSummary: number;
+        contents: {
+            text: number;
+            summary: number;
         };
     };
 }
@@ -83,13 +50,16 @@ export async function askExa(query: string): Promise<ExaSearchResponse> {
                 'x-api-key': apiKey,
                 'Content-Type': 'application/json',
             },
-            // Aca se podria filtrar los resultados programáticamente para definirlos como "Vale la pena expandir" y "No vale la pena expandir".
             body: JSON.stringify({
                 query: query.trim(),
                 type: "auto", // Es el search type: 'auto', 'neural', 'keyword'.
                 // Obtener resultados del ultimo año por defecto. Luego el user podria seleccionar el rango de fechas.
                 startPublishedDate: getLastYearDate(),
-                endPublishedDate: getCurrentDate()
+                endPublishedDate: getCurrentDate(),
+                contents: {
+                    text: true,
+                    summary: true,
+                }
             }),
         });
 
@@ -98,8 +68,30 @@ export async function askExa(query: string): Promise<ExaSearchResponse> {
         }
 
         const data: ExaSearchResponse = await response.json();
-        console.log(data);
-        return data;
+
+        /*
+        "No vale la pena expandir":
+        Algunos resultados arrancan con "I am sorry",
+        estos resultados no tienen datos relevantes a la busqueda del user.
+        El "I am sorry[...]" es un mensaje de la IA de Exa al no poder encontrar resultados relevantes.
+        Por lo tanto los excluyo.
+        */
+        const filteredResults = data.results.filter((result: ExaSearchResult) => {
+            if (result.summary && result.summary.trim().startsWith("I am sorry")) {
+                return false; // Excluir este resultado
+            }
+            return true; // Mantener este resultado
+        });
+
+        // Crear respuesta con resultados filtrados
+        const filteredResponse: ExaSearchResponse = {
+            ...data,
+            results: filteredResults
+        };
+
+        console.log(`Resultados originales: ${data.results.length}, Resultados filtrados: ${filteredResults.length}`);
+
+        return filteredResponse;
     } catch (error) {
         console.error('Error al buscar en Exa:', error);
         throw new Error('Error al realizar la búsqueda. Por favor, inténtalo de nuevo.');
