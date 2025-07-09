@@ -66,7 +66,6 @@ export default function Chat() {
   const [viewportHeight, setViewportHeight] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [completedMessages, setCompletedMessages] = useState<Set<string>>(new Set())
-  const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
   const inputContainerRef = useRef<HTMLDivElement>(null)
   const shouldFocusAfterStreamingRef = useRef(false)
   const mainContainerRef = useRef<HTMLDivElement>(null)
@@ -74,24 +73,22 @@ export default function Chat() {
   const selectionStateRef = useRef<{ start: number | null; end: number | null }>({ start: null, end: null })
   const [isChatCentered, setIsChatCentered] = useState(true)
 
-  // Constantes para cálculos de layout considerando los valores de padding
-  const HEADER_HEIGHT = 48 // 12px height + padding
-  const INPUT_AREA_HEIGHT = 100 // Altura aproximada del área de input con padding
+  // Constantes para el layout, considerando los valores de padding
+  // Esto es para mejorar el layout en mobile
   const TOP_PADDING = 48 // pt-12 (3rem = 48px)
   const BOTTOM_PADDING = 128 // pb-32 (8rem = 128px)
   const ADDITIONAL_OFFSET = 16 // Offset reducido para ajuste fino
 
-  // Detecta si es móvil y obtiene la altura del viewport
+  // Cambio la altura del viewport en mobile
   useEffect(() => {
     const checkMobileAndViewport = () => {
       const isMobileDevice = window.innerWidth < 768
       setIsMobile(isMobileDevice)
 
-      // Captura la altura del viewport
+      // Capturo altura del viewport
       const vh = window.innerHeight
       setViewportHeight(vh)
 
-      // Aplica altura fija al contenedor principal en móvil
       if (isMobileDevice && mainContainerRef.current) {
         mainContainerRef.current.style.height = `${vh}px`
       }
@@ -99,12 +96,12 @@ export default function Chat() {
 
     checkMobileAndViewport()
 
-    // Establece altura inicial
+    // Seteo altura inicial
     if (mainContainerRef.current) {
       mainContainerRef.current.style.height = isMobile ? `${viewportHeight}px` : "100svh"
     }
 
-    // Actualiza en resize
+    // Se actualiza el resize segun corresponda
     window.addEventListener("resize", checkMobileAndViewport)
 
     return () => {
@@ -112,11 +109,11 @@ export default function Chat() {
     }
   }, [isMobile, viewportHeight])
 
-  // Organiza mensajes en secciones
+  // Organiz0 los mensajes en secciones, como podrian hacerlo Exa o Perplexity.
+  // Esto es para mejorar la experiencia de usuario
   useEffect(() => {
     if (messages.length === 0) {
       setMessageSections([])
-      setActiveSectionId(null)
       return
     }
 
@@ -130,16 +127,16 @@ export default function Chat() {
 
     messages.forEach((message) => {
       if (message.newSection) {
-        // Inicia una nueva sección
+        // Seteo nueva seccion
         if (currentSection.messages.length > 0) {
-          // Marca la sección anterior como inactiva
+          // Marco la seccion anterior como inactiva
           sections.push({
             ...currentSection,
             isActive: false,
           })
         }
 
-        // Crea nueva sección activa
+        // Creo nueva seccion activa
         const newSectionId = `section-${Date.now()}-${sections.length}`
         currentSection = {
           id: newSectionId,
@@ -149,15 +146,13 @@ export default function Chat() {
           sectionIndex: sections.length,
         }
 
-        // Actualiza ID de sección activa
-        setActiveSectionId(newSectionId)
       } else {
-        // Agrega a la sección actual
+        // Agrego nuevo mensaje a la seccion actual
         currentSection.messages.push(message)
       }
     })
 
-    // Agrega la última sección si tiene mensajes
+    // Agrego la ultima seccion si tiene mensajes
     if (currentSection.messages.length > 0) {
       sections.push(currentSection)
     }
@@ -165,14 +160,14 @@ export default function Chat() {
     setMessageSections(sections)
   }, [messages])
 
-  // Scroll a posición máxima cuando se crea nueva sección, solo para secciones después de la primera
+  // Setea la vista al final del chat cuando se crea nueva seccion/mensaje
   useEffect(() => {
     if (messageSections.length > 1) {
       setTimeout(() => {
         const scrollContainer = chatContainerRef.current
 
         if (scrollContainer) {
-          // Scroll a posición máxima posible
+          // Scroll a la posicion maxima posible
           scrollContainer.scrollTo({
             top: scrollContainer.scrollHeight,
             behavior: "smooth",
@@ -182,14 +177,14 @@ export default function Chat() {
     }
   }, [messageSections])
 
-  // Enfoca el textarea al montar el componente (solo en desktop)
+  // Seteo el cursor del usuario al textarea
   useEffect(() => {
     if (textareaRef.current && !isMobile) {
       textareaRef.current.focus()
     }
   }, [isMobile])
 
-  // Devuelve el foco al textarea después de que termina el streaming (solo en desktop)
+  // Cuando el streaming de la respuesta termina, seteo el cursor del usuario al textarea
   useEffect(() => {
     if (!isStreaming && shouldFocusAfterStreamingRef.current && !isMobile) {
       focusTextarea()
@@ -197,9 +192,9 @@ export default function Chat() {
     }
   }, [isStreaming, isMobile])
 
-  // Calcula la altura de contenido disponible (viewport menos header e input)
+  // Calculo la altura de contenido disponible (viewport menos header e input)
+  // con las constantes de arriba
   const getContentHeight = () => {
-    // Calcula altura disponible restando el padding superior e inferior del viewport height
     return viewportHeight - TOP_PADDING - BOTTOM_PADDING - ADDITIONAL_OFFSET
   }
 
@@ -505,12 +500,12 @@ export default function Chat() {
 
   const toggleButton = (button: ActiveButton) => {
     if (!isStreaming) {
-      // Guarda el estado de selección actual antes de cambiar
+      // Guardo el estado de seleccion actual antes de cambiar
       saveSelectionState()
 
       setActiveButton((prev) => (prev === button ? "none" : button))
 
-      // Restaura el estado de selección después de cambiar
+      // Restauro el estado de seleccion despues de cambiar
       setTimeout(() => {
         restoreSelectionState()
       }, 0)
@@ -528,14 +523,12 @@ export default function Chat() {
             message.type === "user" ? "bg-white border border-gray-200 rounded-br-none" : "text-gray-900",
           )}
         >
-          {/* Para mensajes de usuario o mensajes del sistema completados, renderiza sin animación */}
           {message.content && (
             <div className={message.type === "system" && !isCompleted ? "animate-fade-in" : ""}>
-              {/* Renderiza el contenido formateado */}
               {message.content.split('\n').map((line, index) => {
                 if (line.trim() === '') return <br key={index} />
                 
-                // Maneja texto en negrita
+                // Agarro el texto en negrita
                 if (line.includes('**')) {
                   const parts = line.split('**')
                   return (
@@ -552,7 +545,7 @@ export default function Chat() {
             </div>
           )}
 
-          {/* Para mensajes en streaming, renderiza con animación */}
+          {/* Animacion simple de fade para el streaming */}
           {message.id === streamingMessageId && (
             <span className="inline">
               {streamingWords.map((word) => (
@@ -588,7 +581,6 @@ export default function Chat() {
     )
   }
 
-  // Determina si una sección debe tener altura fija (solo para secciones después de la primera)
   const shouldApplyHeight = (sectionIndex: number) => {
     return sectionIndex > 0
   }
@@ -653,7 +645,6 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* Título centrado de AI Searcher - solo se muestra cuando el chat está centrado */}
       <div
         className={cn(
           "absolute inset-0 flex items-center justify-center transition-all duration-700 ease-in-out z-10 pointer-events-none",
@@ -689,7 +680,7 @@ export default function Chat() {
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 onFocus={() => {
-                  // Asegura que el textarea esté visible cuando se enfoca
+                  // Textarea visible cuando se enfoca
                   if (textareaRef.current) {
                     textareaRef.current.scrollIntoView({ behavior: "smooth", block: "center" })
                   }
