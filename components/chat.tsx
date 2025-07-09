@@ -18,7 +18,7 @@ interface ChatProps {
   isStreaming: boolean
   activeButton: ActiveButton
   toggleButton: (button: ActiveButton) => void
-  handleInputContainerClick: () => void
+  handleInputContainerClick: (e?: React.MouseEvent<HTMLDivElement>) => void
   hasTyped: boolean
 }
 

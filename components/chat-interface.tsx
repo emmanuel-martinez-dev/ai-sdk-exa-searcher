@@ -224,7 +224,15 @@ export default function ChatInterface() {
     }
   }
 
-  const handleInputContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleInputContainerClick = (e?: React.MouseEvent<HTMLDivElement>) => {
+    // Si no hay evento, simplemente enfoca el textarea
+    if (!e) {
+      if (textareaRef.current) {
+        textareaRef.current.focus()
+      }
+      return
+    }
+    
     // Solo enfoca si hace clic directamente en el contenedor, no en botones u otros elementos interactivos
     if (
       e.target === e.currentTarget ||
@@ -631,7 +639,7 @@ export default function ChatInterface() {
         isStreaming={isStreaming}
         activeButton={activeButton}
         toggleButton={toggleButton}
-        handleInputContainerClick={() => handleInputContainerClick(null as unknown as React.MouseEvent<HTMLDivElement>)}
+        handleInputContainerClick={() => handleInputContainerClick()}
         hasTyped={hasTyped}
       />
     </div>
