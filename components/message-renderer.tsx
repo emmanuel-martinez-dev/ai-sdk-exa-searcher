@@ -2,7 +2,6 @@
 
 import React from "react"
 import { cn } from "@/lib/utils"
-import { RefreshCcw, Copy, Share2, ThumbsUp, ThumbsDown } from "lucide-react"
 import { StreamingResultCard, type StreamingResult } from "./streaming-result-card"
 import { ResultSkeleton } from "./result-skeleton"
 import type { StreamingState } from "./streaming-engine"
@@ -119,27 +118,6 @@ export const MessageRenderer = React.memo(({
           </div>
         )}
       </div>
-
-      {/* Acciones de mensaje */}
-      {message.type === "system" && message.completed && (
-        <div className="flex items-center gap-2 px-4 mt-2 mb-2">
-          <button className="text-gray-400 hover:text-gray-600 transition-colors">
-            <RefreshCcw className="h-4 w-4" />
-          </button>
-          <button className="text-gray-400 hover:text-gray-600 transition-colors">
-            <Copy className="h-4 w-4" />
-          </button>
-          <button className="text-gray-400 hover:text-gray-600 transition-colors">
-            <Share2 className="h-4 w-4" />
-          </button>
-          <button className="text-gray-400 hover:text-gray-600 transition-colors">
-            <ThumbsUp className="h-4 w-4" />
-          </button>
-          <button className="text-gray-400 hover:text-gray-600 transition-colors">
-            <ThumbsDown className="h-4 w-4" />
-          </button>
-        </div>
-      )}
     </div>
   )
 }, (prevProps, nextProps) => {

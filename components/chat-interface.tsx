@@ -27,10 +27,6 @@ interface StreamingWord {
   text: string
 }
 
-// Delay más rápido para streaming más fluido
-const WORD_DELAY = 40 // ms por palabra
-const CHUNK_SIZE = 2 // Número de palabras para agregar de una vez
-
 export default function ChatInterface() {
   const [inputValue, setInputValue] = useState("")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -99,8 +95,8 @@ export default function ChatInterface() {
     }
   }, [isMobile, viewportHeight])
 
-  // Organiz0 los mensajes en secciones, como podrian hacerlo Exa o Perplexity.
-  // Esto es para mejorar la experiencia de usuario
+  // Organizo los mensajes en secciones, como podrian hacerlo Exa o Perplexity
+  // Esto es para mejorar la experiencia de usuario a la hora de chequear los resultados
   useEffect(() => {
     if (messages.length === 0) {
       setMessageSections([])
