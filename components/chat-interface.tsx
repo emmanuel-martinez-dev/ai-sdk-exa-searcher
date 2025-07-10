@@ -1,7 +1,7 @@
 "use client"
 
-import type React from "react"
-import { useState, useRef, useEffect } from "react"
+import React from "react"
+import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import {
   RefreshCcw,
   Copy,
@@ -14,6 +14,26 @@ import { askExa } from "@/actions/exa-actions/search-web"
 import { Header } from "./header"
 import { Title } from "./title"
 import { Chat } from "./chat"
+
+// Agregar estilos CSS personalizados
+const customStyles = `
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+`
+
+// Inyectar estilos en el head si no existen
+if (typeof document !== 'undefined' && !document.getElementById('chat-custom-styles')) {
+  const styleSheet = document.createElement('style')
+  styleSheet.id = 'chat-custom-styles'
+  styleSheet.textContent = customStyles
+  document.head.appendChild(styleSheet)
+}
 
 type ActiveButton = "none" | "search" | "ask" | "crawling" | "research"
 type MessageType = "user" | "system"
@@ -41,9 +61,129 @@ interface StreamingWord {
   text: string
 }
 
+interface StreamingResult {
+  id: string
+  title: string
+  author?: string
+  publishedDate?: string
+  summary?: string
+  text?: string
+  url: string
+  isComplete: boolean
+}
+
+interface StreamingState {
+  currentResultIndex: number
+  currentField: 'title' | 'author' | 'date' | 'summary' | 'url' | 'complete'
+  results: StreamingResult[]
+  isComplete: boolean
+}
+
 // Delay más rápido para streaming más fluido
 const WORD_DELAY = 40 // ms por palabra
 const CHUNK_SIZE = 2 // Número de palabras para agregar de una vez
+
+// Componente memoizado para evitar re-renders
+const MemoizedResultCard = React.memo(({ 
+  result, 
+  isStreaming: isResultStreaming 
+}: { 
+  result: StreamingResult
+  isStreaming: boolean 
+}) => (
+  <div className={cn(
+    "p-4 border border-gray-100 rounded-lg mb-3 transition-all duration-300",
+    result.isComplete ? "bg-white shadow-sm" : "bg-gray-50",
+    !result.title && "opacity-50"
+  )}>
+    <div className="space-y-2">
+      {/* Título */}
+      <div className="flex items-start gap-2">
+        <div className={cn(
+          "w-2 h-2 rounded-full mt-2 flex-shrink-0 transition-colors",
+          result.isComplete ? "bg-green-500" : "bg-blue-500"
+        )}></div>
+        <div className="flex-1">
+          <h3 className="font-semibold text-gray-900 leading-tight">
+            {result.title || 'Cargando...'}
+            {isResultStreaming && !result.isComplete && (
+              <span className="inline-block w-2 h-4 bg-blue-500 ml-1 animate-pulse"></span>
+            )}
+          </h3>
+        </div>
+      </div>
+
+      {/* Metadatos */}
+      {(result.author || result.publishedDate) && result.title && (
+        <div className="ml-4 space-y-1 text-sm text-gray-600">
+          {result.author && (
+            <div className="flex items-center gap-1">
+              <span className="font-medium">Autor:</span>
+              <span>{result.author}</span>
+            </div>
+          )}
+          
+          {result.publishedDate && (
+            <div className="flex items-center gap-1">
+              <span className="font-medium">Fecha:</span>
+              <span>{new Date(result.publishedDate).toLocaleDateString('es-AR')}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Resumen/Contenido */}
+      {(result.summary || result.text) && result.title && (
+        <div className="ml-4 text-sm text-gray-700 leading-relaxed">
+          <span className="font-medium text-gray-800">Resumen:</span>
+          <p className="mt-1">
+            {result.summary || (result.text ? result.text.substring(0, 200) + '...' : '')}
+          </p>
+        </div>
+      )}
+
+      {/* URL */}
+      {result.url && result.title && (
+        <div className="ml-4">
+          <a 
+            href={result.url} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800 text-sm underline break-all transition-colors"
+          >
+            {result.url}
+          </a>
+        </div>
+      )}
+    </div>
+  </div>
+), (prevProps, nextProps) => {
+  // Custom comparison para evitar re-renders innecesarios
+  return (
+    prevProps.result.id === nextProps.result.id &&
+    prevProps.result.title === nextProps.result.title &&
+    prevProps.result.isComplete === nextProps.result.isComplete &&
+    prevProps.isStreaming === nextProps.isStreaming
+  )
+})
+
+MemoizedResultCard.displayName = 'MemoizedResultCard'
+
+// Skeleton memoizado
+const MemoizedSkeleton = React.memo(() => (
+  <div className="animate-pulse space-y-2 p-4 border border-gray-100 rounded-lg">
+    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+    <div className="h-3 bg-gray-200 rounded w-1/3"></div>
+    <div className="space-y-1">
+      <div className="h-3 bg-gray-200 rounded"></div>
+      <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+    </div>
+    <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+  </div>
+))
+
+MemoizedSkeleton.displayName = 'MemoizedSkeleton'
 
 export default function ChatInterface() {
   const [inputValue, setInputValue] = useState("")
@@ -67,6 +207,12 @@ export default function ChatInterface() {
   // Almacena el estado de selección del textarea
   const selectionStateRef = useRef<{ start: number | null; end: number | null }>({ start: null, end: null })
   const [isChatCentered, setIsChatCentered] = useState(true)
+  const [streamingState, setStreamingState] = useState<StreamingState>({
+    currentResultIndex: 0,
+    currentField: 'title',
+    results: [],
+    isComplete: false
+  })
 
   // Constantes para el layout, considerando los valores de padding
   // Esto es para mejorar el layout en mobile
@@ -151,7 +297,7 @@ export default function ChatInterface() {
     if (currentSection.messages.length > 0) {
       sections.push(currentSection)
     }
-
+    console.log(JSON.stringify(sections, null, 2))
     setMessageSections(sections)
   }, [messages])
 
@@ -244,46 +390,61 @@ export default function ChatInterface() {
     }
   }
 
-  const simulateTextStreaming = async (text: string) => {
-    // Divide el texto en palabras
-    const words = text.split(" ")
-    let currentIndex = 0
-    setStreamingWords([])
+  const simulateProgressiveStreaming = async (exaResults: any[]) => {
     setIsStreaming(true)
+    
+    // Crear resultados iniciales con IDs únicos y estables
+    const initialResults: StreamingResult[] = exaResults.map((result, index) => ({
+      id: `result-${Date.now()}-${index}`, // ID único y estable
+      title: '',
+      author: result.author,
+      publishedDate: result.publishedDate,
+      summary: result.summary,
+      text: result.text,
+      url: result.url,
+      isComplete: false
+    }))
 
-    return new Promise<void>((resolve) => {
-      const streamInterval = setInterval(() => {
-        if (currentIndex < words.length) {
-          // Agrega algunas palabras a la vez
-          const nextIndex = Math.min(currentIndex + CHUNK_SIZE, words.length)
-          const newWordsArray = words.slice(currentIndex, nextIndex)
-
-          setStreamingWords((prev) => {
-            const newWords = [
-              ...prev,
-              {
-                id: Date.now() + currentIndex,
-                text: newWordsArray.join(" ") + " ",
-              },
-            ]
-
-            // Auto-scroll durante el streaming
-            setTimeout(() => {
-              if (messagesEndRef.current) {
-                messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
-              }
-            }, 10)
-
-            return newWords
-          })
-
-          currentIndex = nextIndex
-        } else {
-          clearInterval(streamInterval)
-          resolve()
-        }
-      }, WORD_DELAY)
+    // Setear todos los resultados de una vez para evitar múltiples re-renders
+    setStreamingState({
+      currentResultIndex: 0,
+      currentField: 'title',
+      results: initialResults,
+      isComplete: false
     })
+
+    // Simular streaming con menos actualizaciones de estado
+    for (let i = 0; i < exaResults.length; i++) {
+      const result = exaResults[i]
+      
+      // Agregar vibración para cada nuevo resultado
+      navigator.vibrate(30)
+      
+      // Delay antes de mostrar el resultado
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      // Actualizar solo el resultado específico
+      setStreamingState(prev => {
+        const newResults = [...prev.results]
+        newResults[i] = {
+          ...newResults[i],
+          title: result.title || '',
+          isComplete: true
+        }
+        
+        return {
+          ...prev,
+          results: newResults,
+          currentResultIndex: i
+        }
+      })
+      
+      // Pausa entre resultados
+      await new Promise(resolve => setTimeout(resolve, 400))
+    }
+    
+    setStreamingState(prev => ({ ...prev, isComplete: true }))
+    setIsStreaming(false)
   }
 
   // Función para formatear los resultados de Exa en texto legible
@@ -345,11 +506,8 @@ export default function ChatInterface() {
       // Llama a la API de Exa
       const exaResponse = await askExa(userMessage)
       
-      // Formatea los resultados usando la nueva estructura results
-      const formattedResponse = formatExaResults(exaResponse.results)
-      
-      // Hace streaming del texto formateado
-      await simulateTextStreaming(formattedResponse)
+      // Usa el nuevo sistema de streaming progresivo
+      await simulateProgressiveStreaming(exaResponse.results)
 
       // Actualiza con el mensaje completo incluyendo los resultados originales
       setMessages((prev) =>
@@ -357,7 +515,7 @@ export default function ChatInterface() {
           msg.id === messageId 
             ? { 
                 ...msg, 
-                content: formattedResponse, 
+                content: "", // Ya no necesitamos contenido de texto
                 completed: true,
                 searchResults: exaResponse.results 
               } 
@@ -373,10 +531,7 @@ export default function ChatInterface() {
       
       const errorMessage = "Lo siento, hubo un error al realizar la búsqueda. Por favor, intentá de nuevo."
       
-      // Hace streaming del mensaje de error
-      await simulateTextStreaming(errorMessage)
-      
-      // Actualiza con el mensaje de error
+      // Para errores, usa el sistema simple
       setMessages((prev) =>
         prev.map((msg) => 
           msg.id === messageId 
@@ -515,54 +670,106 @@ export default function ChatInterface() {
     }
   }
 
+  // Usar useMemo para evitar re-cálculos innecesarios
+  const currentStreamingResults = useMemo(() => {
+    return streamingState.results.filter(result => result.title || !result.isComplete)
+  }, [streamingState.results])
+
+  const shouldShowSkeleton = useMemo(() => {
+    return !streamingState.isComplete && 
+           streamingState.currentResultIndex < streamingState.results.length - 1
+  }, [streamingState.isComplete, streamingState.currentResultIndex, streamingState.results.length])
+
   const renderMessage = (message: Message) => {
     const isCompleted = completedMessages.has(message.id)
+    const isStreamingMessage = message.id === streamingMessageId
 
     return (
       <div key={message.id} className={cn("flex flex-col", message.type === "user" ? "items-end" : "items-start")}>
         <div
           className={cn(
-            "max-w-[80%] px-4 py-2 rounded-2xl",
-            message.type === "user" ? "bg-white border border-gray-200 rounded-br-none" : "text-gray-900",
+            "max-w-[90%] px-4 py-3 rounded-2xl",
+            message.type === "user" 
+              ? "bg-white border border-gray-200 rounded-br-none" 
+              : "bg-transparent",
           )}
         >
-          {message.content && (
-            <div className={message.type === "system" && !isCompleted ? "animate-fade-in" : ""}>
-              {message.content.split('\n').map((line, index) => {
-                if (line.trim() === '') return <br key={index} />
-                
-                // Agarro el texto en negrita
-                if (line.includes('**')) {
-                  const parts = line.split('**')
-                  return (
-                    <div key={index} className="mb-1">
-                      {parts.map((part, partIndex) => 
-                        partIndex % 2 === 1 ? <strong key={partIndex}>{part}</strong> : part
-                      )}
-                    </div>
-                  )
-                }
-                
-                return <div key={index} className="mb-1">{line}</div>
-              })}
+          {/* Contenido del mensaje de usuario */}
+          {message.type === "user" && message.content && (
+            <div className="text-gray-900">
+              {message.content}
             </div>
           )}
 
-          {/* Animacion simple de fade para el streaming */}
-          {message.id === streamingMessageId && (
-            <span className="inline">
-              {streamingWords.map((word) => (
-                <span key={word.id} className="animate-fade-in inline">
-                  {word.text}
-                </span>
-              ))}
-            </span>
+          {/* Contenido del sistema con streaming mejorado */}
+          {message.type === "system" && (
+            <div className="space-y-3 w-full">
+              {/* Header con contador de resultados */}
+              {(isStreamingMessage || message.searchResults) && (
+                <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
+                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                  <span>
+                    {isStreamingMessage 
+                      ? `Buscando resultados...` 
+                      : `Encontré ${message.searchResults?.length || 0} resultado${(message.searchResults?.length || 0) > 1 ? 's' : ''}`
+                    }
+                  </span>
+                </div>
+              )}
+
+              {/* Resultados con streaming progresivo */}
+              {isStreamingMessage && currentStreamingResults.length > 0 && (
+                <div className="space-y-3">
+                  {currentStreamingResults.map((result, index) => (
+                    <MemoizedResultCard 
+                      key={result.id} 
+                      result={result} 
+                      isStreaming={index === streamingState.currentResultIndex && !result.isComplete}
+                    />
+                  ))}
+                  
+                  {/* Skeleton para el próximo resultado */}
+                  {shouldShowSkeleton && (
+                    <MemoizedSkeleton />
+                  )}
+                </div>
+              )}
+
+              {/* Resultados completados */}
+              {message.searchResults && !isStreamingMessage && (
+                <div className="space-y-3">
+                  {message.searchResults.map((result, index) => (
+                    <MemoizedResultCard 
+                      key={`completed-${message.id}-${index}`} 
+                      result={{
+                        id: `completed-${message.id}-${index}`,
+                        title: result.title,
+                        author: result.author,
+                        publishedDate: result.publishedDate,
+                        summary: result.summary,
+                        text: result.text,
+                        url: result.url,
+                        isComplete: true
+                      }} 
+                      isStreaming={false}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Mensaje de error o contenido simple */}
+              {message.content && !message.searchResults && !isStreamingMessage && (
+                <div className="text-gray-700 leading-relaxed">
+                  {message.content}
+                </div>
+              )}
+            </div>
           )}
         </div>
 
         {/* Acciones de mensaje */}
         {message.type === "system" && message.completed && (
-          <div className="flex items-center gap-2 px-4 mt-1 mb-2">
+          <div className="flex items-center gap-2 px-4 mt-2 mb-2">
             <button className="text-gray-400 hover:text-gray-600 transition-colors">
               <RefreshCcw className="h-4 w-4" />
             </button>

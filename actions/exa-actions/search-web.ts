@@ -66,7 +66,6 @@ export async function askExa(query: string): Promise<ExaSearchResponse> {
         if (!response.ok) {
             throw new Error(`Error en la API de Exa: ${response.status} ${response.statusText}`);
         }
-
         const data: ExaSearchResponse = await response.json();
 
         /*
@@ -91,6 +90,7 @@ export async function askExa(query: string): Promise<ExaSearchResponse> {
 
         console.log(`Resultados originales: ${data.results.length}, Resultados filtrados: ${filteredResults.length}`);
 
+        console.log(filteredResponse)
         return filteredResponse;
     } catch (error) {
         console.error('Error al buscar en Exa:', error);
