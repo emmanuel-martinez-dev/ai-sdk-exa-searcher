@@ -29,7 +29,6 @@ export async function generateTitles(
 
     const { count, tone = 'formal', focus = 'news' } = options
 
-    // Validar que el número de títulos esté en un rango razonable
     if (count < 1 || count > 10) {
         throw new Error('El número de títulos debe estar entre 1 y 10')
     }
@@ -76,7 +75,7 @@ export async function generateTitles(
             system: systemPrompt,
             prompt: userPrompt,
             schema: TitlesSchema,
-            temperature: 0.8, // Más creatividad para títulos diversos
+            temperature: 0.8, // Mas creatividad
         })
 
         return {

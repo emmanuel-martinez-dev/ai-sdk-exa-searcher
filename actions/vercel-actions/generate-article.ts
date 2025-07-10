@@ -27,7 +27,6 @@ export async function generateArticle(
         throw new Error('OPENAI_API_KEY no está configurada en las variables de entorno')
     }
 
-    // Configuración por defecto
     const {
         tone = 'formal',
         length = 'medium',
