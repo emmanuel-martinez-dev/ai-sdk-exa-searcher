@@ -1,10 +1,7 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { AppSidebar } from "@/components/dashboard/app-sidebar"
-import { ChartAreaInteractive } from "@/components/dashboard/chart-area-interactive"
-import { DataTable } from "@/components/dashboard/data-table"
-import { SectionCards } from "@/components/dashboard/section-cards"
 import { SiteHeader } from "@/components/dashboard/site-header"
 import {
   SidebarInset,
@@ -52,15 +49,98 @@ import {
   Quote,
   Image,
   Type,
-  Palette,
-  Upload,
   Lightbulb,
   RefreshCw
 } from "lucide-react"
 import { generateArticle } from "@/actions/vercel-actions/generate-article"
 import { generateTitles } from "@/actions/vercel-actions/generate-titles"
 
-import data from "./data.json"
+// Componente para restaurar sesion guardada
+const SessionRestoreCard = ({ onRestore }: { onRestore: () => void }) => {
+  const [hasSession, setHasSession] = useState(false)
+  const [sessionInfo, setSessionInfo] = useState<{
+    articleData?: ArticleData;
+    sessionTimestamp?: number;
+  } | null>(null)
+
+  useEffect(() => {
+    const checkSession = () => {
+      try {
+        const savedSession = localStorage.getItem('dashboardSession')
+        if (savedSession) {
+          const sessionData = JSON.parse(savedSession)
+          const maxAge = 24 * 60 * 60 * 1000 // 24 horas
+          const sessionAge = Date.now() - (sessionData.sessionTimestamp || 0)
+          
+          if (sessionAge <= maxAge && sessionData.articleData) {
+            setHasSession(true)
+            setSessionInfo(sessionData)
+          }
+        }
+      } catch (error) {
+        console.error('Error checking session:', error)
+      }
+    }
+
+    checkSession()
+  }, [])
+
+  if (!hasSession || !sessionInfo) return null
+
+  const handleRestore = () => {
+    onRestore()
+    setHasSession(false)
+  }
+
+  const handleDiscard = () => {
+    localStorage.removeItem('dashboardSession')
+    setHasSession(false)
+  }
+
+  const timeAgo = Math.floor((Date.now() - (sessionInfo?.sessionTimestamp || 0)) / (1000 * 60 * 60))
+
+  return (
+    <Card className="border-2 border-blue-200 bg-blue-50/50">
+      <CardContent className="pt-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <FileText className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-blue-900">
+                Sesión anterior disponible
+              </h3>
+              <p className="text-sm text-blue-700">
+                Artículo: &quot;{sessionInfo.articleData?.title?.slice(0, 50)}...&quot; • 
+                Guardado hace {timeAgo}h
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={handleRestore}
+              className="px-4"
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Restaurar
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDiscard}
+              className="px-4"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Descartar
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
 interface ArticleData {
   title: string
@@ -101,7 +181,7 @@ export default function Page() {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [uploadedImages, setUploadedImages] = useState<string[]>([])
   
-  // Estados para la generación de títulos
+  // Estados para la generacion de titulos
   const [isGeneratingTitles, setIsGeneratingTitles] = useState(false)
   const [generatedTitles, setGeneratedTitles] = useState<Array<{title: string, reason: string}>>([])
   const [showTitlesPanel, setShowTitlesPanel] = useState(false)
@@ -123,15 +203,97 @@ export default function Page() {
   const editorRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
-  // Opciones de generación
+  // Opciones de tono
   const [options, setOptions] = useState<GenerateArticleOptions>({
     tone: 'formal',
     length: 'medium',
     focus: 'news'
   })
 
+  // Manejamos local storage aca.
+  const saveSession = useCallback(() => {
+    try {
+      const sessionData = {
+        articleData,
+        generatedContent,
+        editedContent,
+        generatedTitles,
+        selectedTitle,
+        options,
+        textFormat,
+        uploadedImages,
+        isEditing,
+        generationComplete,
+        titleCount,
+        showTitlesPanel,
+        hasUnsavedChanges,
+        sessionTimestamp: Date.now()
+      }
+      
+      localStorage.setItem('dashboardSession', JSON.stringify(sessionData))
+    } catch (error) {
+      console.error('Error saving session:', error)
+    }
+  }, [
+    articleData,
+    generatedContent,
+    editedContent,
+    generatedTitles,
+    selectedTitle,
+    options,
+    textFormat,
+    uploadedImages,
+    isEditing,
+    generationComplete,
+    titleCount,
+    showTitlesPanel,
+    hasUnsavedChanges
+  ])
+
+  const loadSession = useCallback(() => {
+    try {
+      const savedSession = localStorage.getItem('dashboardSession')
+      if (savedSession) {
+        const sessionData = JSON.parse(savedSession)
+        
+        const maxAge = 24 * 60 * 60 * 1000 // 24 horas en ms
+        const sessionAge = Date.now() - (sessionData.sessionTimestamp || 0)
+        
+        if (sessionAge > maxAge) {
+          localStorage.removeItem('dashboardSession')
+          return
+        }
+        
+        // Restaurar estado
+        if (sessionData.articleData) setArticleData(sessionData.articleData)
+        if (sessionData.generatedContent) setGeneratedContent(sessionData.generatedContent)
+        if (sessionData.editedContent) setEditedContent(sessionData.editedContent)
+        if (sessionData.generatedTitles) setGeneratedTitles(sessionData.generatedTitles)
+        if (sessionData.selectedTitle) setSelectedTitle(sessionData.selectedTitle)
+        if (sessionData.options) setOptions(sessionData.options)
+        if (sessionData.textFormat) setTextFormat(sessionData.textFormat)
+        if (sessionData.uploadedImages) setUploadedImages(sessionData.uploadedImages)
+        if (sessionData.titleCount) setTitleCount(sessionData.titleCount)
+        
+        setIsEditing(sessionData.isEditing || false)
+        setGenerationComplete(sessionData.generationComplete || false)
+        setShowTitlesPanel(sessionData.showTitlesPanel || false)
+        setHasUnsavedChanges(sessionData.hasUnsavedChanges || false)
+      }
+    } catch (error) {
+      console.error('Error loading session:', error)
+      localStorage.removeItem('dashboardSession')
+    }
+  }, [])
+
+  const clearSession = useCallback(() => {
+    localStorage.removeItem('dashboardSession')
+  }, [])
+
+  // Cargar sesion guardada al inicializar
   useEffect(() => {
-    // Verificar si hay datos de artículo en localStorage
+    loadSession()
+    
     const storedArticleData = localStorage.getItem('articleData')
     if (storedArticleData) {
       try {
@@ -145,7 +307,23 @@ export default function Page() {
     }
   }, [])
 
-  // Sincronizar contenido editado con contenido generado
+  useEffect(() => {
+    if (articleData || generatedContent || editedContent) {
+      saveSession()
+    }
+  }, [
+    articleData,
+    generatedContent,
+    editedContent,
+    generatedTitles,
+    selectedTitle,
+    options,
+    textFormat,
+    uploadedImages,
+    isEditing,
+    generationComplete
+  ])
+
   useEffect(() => {
     if (generatedContent && !isEditing) {
       setEditedContent(generatedContent)
@@ -193,6 +371,8 @@ export default function Page() {
     setGeneratedTitles([])
     setShowTitlesPanel(false)
     setSelectedTitle(null)
+    // Limpiamos la sesion guardada
+    clearSession()
   }
 
   const handleGenerateTitles = async () => {
@@ -347,7 +527,6 @@ export default function Page() {
     setEditedContent(newContent)
     setHasUnsavedChanges(true)
 
-    // Mantener el foco en el textarea
     setTimeout(() => {
       textarea.focus()
       textarea.setSelectionRange(start + newText.length, start + newText.length)
@@ -410,10 +589,9 @@ export default function Page() {
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               
-              {/* Generador de artículo completo */}
+              {/* Generamos el articulo */}
               {articleData && (
                 <div className="px-4 lg:px-6 space-y-6">
-                  {/* Información del artículo fuente */}
                   <Card className="border-2">
                     <CardHeader className="pb-4">
                       <div className="flex items-center justify-between">
@@ -424,6 +602,11 @@ export default function Page() {
                             <Badge variant="secondary" className="ml-2">
                               <Edit3 className="h-3 w-3 mr-1" />
                               Editando
+                            </Badge>
+                          )}
+                          {(generatedContent || editedContent) && (
+                            <Badge variant="outline" className="ml-2 text-xs bg-green-50 text-green-700">
+                              📁 Sesión guardada
                             </Badge>
                           )}
                         </CardTitle>
@@ -481,7 +664,7 @@ export default function Page() {
                     </CardContent>
                   </Card>
 
-                  {/* Configuración - Solo mostrar si no se ha generado contenido */}
+                  {/* Mostrar la configuracion no se genero el articulo */}
                   {!generatedContent && !isGenerating && (
                     <Card className="border-2">
                       <CardHeader className="pb-6">
@@ -626,7 +809,7 @@ export default function Page() {
                     </Card>
                   )}
 
-                  {/* Artículo generado */}
+                  {/* Articulo generado */}
                   {generatedContent && generationComplete && (
                     <div className="space-y-6">
                       {/* Barra de acciones */}
@@ -1115,7 +1298,6 @@ export default function Page() {
                                     size="sm"
                                     onClick={() => {
                                       navigator.clipboard.writeText(selectedTitle)
-                                      // Aquí podrías agregar un toast de confirmación
                                     }}
                                     className="px-3 py-1 h-8"
                                   >
@@ -1137,7 +1319,7 @@ export default function Page() {
                         </Card>
                       )}
 
-                      {/* Contenido del artículo */}
+                      {/* Contenido del articulo */}
                       <Card className="border-2">
                         <CardHeader className="pb-4">
                           <CardTitle className="flex items-center gap-3 text-xl">
@@ -1195,14 +1377,12 @@ export default function Page() {
                 </div>
               )}
 
-              {/* Componentes originales del dashboard */}
               {!articleData && (
                 <>
-                  <SectionCards />
+                  {/* Chequeamos si hay sesion guardada */}
                   <div className="px-4 lg:px-6">
-                    <ChartAreaInteractive />
+                    <SessionRestoreCard onRestore={loadSession} />
                   </div>
-                  <DataTable data={data} />
                 </>
               )}
             </div>
