@@ -1,5 +1,13 @@
 ## Gotham.ai - motor de búsqueda IA.
 
+Podes probar el proyecto en [gotham.ai](https://ai-sdk-exa-searcher.vercel.app/)
+
+### 🎥 Demo
+
+<video width="100%" controls>
+  <source src="./public/demo.mp4" type="video/mp4">
+</video>
+
 Agregá estas variables de entorno en el proyecto.
 
 Generá tu Exa api key [acá](https://dashboard.exa.ai/login?redirect=/api-keys).
