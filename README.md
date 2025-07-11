@@ -4,7 +4,7 @@ Podes probar el proyecto en [gotham.ai](https://ai-sdk-exa-searcher.vercel.app/)
 
 ### 🎥 Demo
 
-https://github.com/emmanuel-martinez-dev/ai-sdk-exa-searcher/blob/main/public/demo.mp4
+https://github.com/user-attachments/assets/e8dc0795-5512-4994-b4ad-791e49680ad2
 
 Agregá estas variables de entorno en el proyecto.
 
