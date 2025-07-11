@@ -190,6 +190,7 @@ export default function Page() {
       toast.success("Título copiado al portapapeles", {
         description: title.length > 50 ? `${title.substring(0, 50)}...` : title,
         duration: 3000,
+        className: "bg-green-500 text-white",
       })
     } catch (error) {
       console.error('Error al copiar el título:', error)
@@ -601,7 +602,7 @@ export default function Page() {
                             </CardHeader>
                             <CardContent className="space-y-3">
                               <p className="text-sm text-gray-600 italic mb-4">
-                                💡 Haz clic en cualquier título para copiarlo al portapapeles
+                                💡 Hace clic en cualquier título para copiarlo al portapapeles
                               </p>
                               {generatedTitles.map((titleData, index) => (
                                 <div
@@ -615,7 +616,7 @@ export default function Page() {
                                     handleSelectTitle(titleData.title)
                                     handleCopyTitle(titleData.title)
                                   }}
-                                  title="Haz clic para copiar al portapapeles"
+                                  title="Hace clic para copiar al portapapeles"
                                 >
                                   <div className="space-y-2">
                                     <div className="flex items-start justify-between gap-2">
