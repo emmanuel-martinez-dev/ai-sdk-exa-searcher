@@ -1,146 +1,36 @@
 "use client"
 
-import { useEffect, useState, useRef, useCallback } from "react"
-import { AppSidebar } from "@/components/dashboard/app-sidebar"
-import { SiteHeader } from "@/components/dashboard/site-header"
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
+import { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import { 
-  FileText, 
-  User, 
-  Calendar, 
-  Link as LinkIcon, 
-  Check, 
-  X, 
-  Copy, 
-  Download, 
-  Sparkles, 
-  Edit3, 
-  Save, 
-  RotateCcw,
-  Bold,
-  Italic,
-  Underline,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  List,
-  ListOrdered,
-  Quote,
-  Image,
-  Type,
-  Lightbulb,
-  RefreshCw
-} from "lucide-react"
-import { generateArticle } from "@/actions/vercel-actions/generate-article"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { AppSidebar } from "@/components/dashboard/app-sidebar"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { SiteHeader } from "@/components/dashboard/site-header"
 import { generateTitles } from "@/actions/vercel-actions/generate-titles"
-
-// Componente para restaurar sesion guardada
-const SessionRestoreCard = ({ onRestore }: { onRestore: () => void }) => {
-  const [hasSession, setHasSession] = useState(false)
-  const [sessionInfo, setSessionInfo] = useState<{
-    articleData?: ArticleData;
-    sessionTimestamp?: number;
-  } | null>(null)
-
-  useEffect(() => {
-    const checkSession = () => {
-      try {
-        const savedSession = localStorage.getItem('dashboardSession')
-        if (savedSession) {
-          const sessionData = JSON.parse(savedSession)
-          const maxAge = 24 * 60 * 60 * 1000 // 24 horas
-          const sessionAge = Date.now() - (sessionData.sessionTimestamp || 0)
-          
-          if (sessionAge <= maxAge && sessionData.articleData) {
-            setHasSession(true)
-            setSessionInfo(sessionData)
-          }
-        }
-      } catch (error) {
-        console.error('Error checking session:', error)
-      }
-    }
-
-    checkSession()
-  }, [])
-
-  if (!hasSession || !sessionInfo) return null
-
-  const handleRestore = () => {
-    onRestore()
-    setHasSession(false)
-  }
-
-  const handleDiscard = () => {
-    localStorage.removeItem('dashboardSession')
-    setHasSession(false)
-  }
-
-  const timeAgo = Math.floor((Date.now() - (sessionInfo?.sessionTimestamp || 0)) / (1000 * 60 * 60))
-
-  return (
-    <Card className="border-2 border-blue-200 bg-blue-50/50">
-      <CardContent className="pt-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <FileText className="h-5 w-5 text-blue-600" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-blue-900">
-                Sesión anterior disponible
-              </h3>
-              <p className="text-sm text-blue-700">
-                Artículo: &quot;{sessionInfo.articleData?.title?.slice(0, 50)}...&quot; • 
-                Guardado hace {timeAgo}h
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              onClick={handleRestore}
-              className="px-4"
-            >
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Restaurar
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDiscard}
-              className="px-4"
-            >
-              <X className="h-4 w-4 mr-2" />
-              Descartar
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
+import { useChat } from 'ai/react'
+import { toast } from "sonner"
+import {
+  FileText,
+  Sparkles,
+  Edit3,
+  Save,
+  X,
+  Copy,
+  Download,
+  User,
+  Calendar,
+  Link as LinkIcon,
+  Wand2,
+  Check,
+  AlertCircle,
+  RefreshCw,
+  ChevronDown
+} from "lucide-react"
 
 interface ArticleData {
   title: string
@@ -149,22 +39,13 @@ interface ArticleData {
   url: string
   publishedDate?: string
   text?: string
+  timestamp?: number
 }
 
 interface GenerateArticleOptions {
   tone?: 'formal' | 'casual' | 'technical' | 'investigative'
   length?: 'short' | 'medium' | 'long'
   focus?: 'news' | 'analysis' | 'opinion' | 'feature'
-}
-
-interface TextFormat {
-  bold: boolean
-  italic: boolean
-  underline: boolean
-  align: 'left' | 'center' | 'right'
-  fontSize: string
-  fontFamily: string
-  color: string
 }
 
 export default function Page() {
@@ -174,12 +55,9 @@ export default function Page() {
   const [editedContent, setEditedContent] = useState("")
   const [isEditing, setIsEditing] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const [generationComplete, setGenerationComplete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copySuccess, setCopySuccess] = useState(false)
   const [downloadSuccess, setDownloadSuccess] = useState(false)
-  const [saveSuccess, setSaveSuccess] = useState(false)
-  const [uploadedImages, setUploadedImages] = useState<string[]>([])
   
   // Estados para la generacion de titulos
   const [isGeneratingTitles, setIsGeneratingTitles] = useState(false)
@@ -188,21 +66,6 @@ export default function Page() {
   const [titleCount, setTitleCount] = useState(5)
   const [selectedTitle, setSelectedTitle] = useState<string | null>(null)
   
-  // Estados para el formato de texto
-  const [textFormat, setTextFormat] = useState<TextFormat>({
-    bold: false,
-    italic: false,
-    underline: false,
-    align: 'left',
-    fontSize: '16px',
-    fontFamily: 'serif',
-    color: '#000000'
-  })
-  
-  // Referencias para el editor
-  const editorRef = useRef<HTMLTextAreaElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  
   // Opciones de tono
   const [options, setOptions] = useState<GenerateArticleOptions>({
     tone: 'formal',
@@ -210,119 +73,47 @@ export default function Page() {
     focus: 'news'
   })
 
-  // Manejamos local storage aca.
-  const saveSession = useCallback(() => {
-    try {
-      const sessionData = {
-        articleData,
-        generatedContent,
-        editedContent,
-        generatedTitles,
-        selectedTitle,
-        options,
-        textFormat,
-        uploadedImages,
-        isEditing,
-        generationComplete,
-        titleCount,
-        showTitlesPanel,
-        hasUnsavedChanges,
-        sessionTimestamp: Date.now()
-      }
-      
-      localStorage.setItem('dashboardSession', JSON.stringify(sessionData))
-    } catch (error) {
-      console.error('Error saving session:', error)
+  // Hook useChat para manejar el streaming
+  const { messages, append, isLoading } = useChat({
+    api: '/api/chat',
+    onFinish: (message) => {
+      setGeneratedContent(message.content)
+      setIsGenerating(false)
+    },
+    onError: (error) => {
+      setError(error.message)
+      setIsGenerating(false)
     }
-  }, [
-    articleData,
-    generatedContent,
-    editedContent,
-    generatedTitles,
-    selectedTitle,
-    options,
-    textFormat,
-    uploadedImages,
-    isEditing,
-    generationComplete,
-    titleCount,
-    showTitlesPanel,
-    hasUnsavedChanges
-  ])
+  })
 
-  const loadSession = useCallback(() => {
-    try {
-      const savedSession = localStorage.getItem('dashboardSession')
-      if (savedSession) {
-        const sessionData = JSON.parse(savedSession)
-        
-        const maxAge = 24 * 60 * 60 * 1000 // 24 horas en ms
-        const sessionAge = Date.now() - (sessionData.sessionTimestamp || 0)
-        
-        if (sessionAge > maxAge) {
-          localStorage.removeItem('dashboardSession')
-          return
-        }
-        
-        // Restaurar estado
-        if (sessionData.articleData) setArticleData(sessionData.articleData)
-        if (sessionData.generatedContent) setGeneratedContent(sessionData.generatedContent)
-        if (sessionData.editedContent) setEditedContent(sessionData.editedContent)
-        if (sessionData.generatedTitles) setGeneratedTitles(sessionData.generatedTitles)
-        if (sessionData.selectedTitle) setSelectedTitle(sessionData.selectedTitle)
-        if (sessionData.options) setOptions(sessionData.options)
-        if (sessionData.textFormat) setTextFormat(sessionData.textFormat)
-        if (sessionData.uploadedImages) setUploadedImages(sessionData.uploadedImages)
-        if (sessionData.titleCount) setTitleCount(sessionData.titleCount)
-        
-        setIsEditing(sessionData.isEditing || false)
-        setGenerationComplete(sessionData.generationComplete || false)
-        setShowTitlesPanel(sessionData.showTitlesPanel || false)
-        setHasUnsavedChanges(sessionData.hasUnsavedChanges || false)
-      }
-    } catch (error) {
-      console.error('Error loading session:', error)
-      localStorage.removeItem('dashboardSession')
-    }
-  }, [])
-
-  const clearSession = useCallback(() => {
-    localStorage.removeItem('dashboardSession')
-  }, [])
-
-  // Cargar sesion guardada al inicializar
+  // Cargar datos del artículo desde localStorage al inicializar (solo una vez)
   useEffect(() => {
-    loadSession()
-    
     const storedArticleData = localStorage.getItem('articleData')
     if (storedArticleData) {
       try {
         const parsedData = JSON.parse(storedArticleData)
         setArticleData(parsedData)
-        // Limpiar localStorage después de cargar los datos
-        localStorage.removeItem('articleData')
+        localStorage.removeItem('articleData') // Limpiar después de usar
       } catch (error) {
         console.error('Error parsing article data:', error)
       }
     }
   }, [])
 
+  // Efecto para manejar el streaming del contenido
   useEffect(() => {
-    if (articleData || generatedContent || editedContent) {
-      saveSession()
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1]
+      if (lastMessage.role === 'assistant') {
+        setGeneratedContent(lastMessage.content)
+      }
     }
-  }, [
-    articleData,
-    generatedContent,
-    editedContent,
-    generatedTitles,
-    selectedTitle,
-    options,
-    textFormat,
-    uploadedImages,
-    isEditing,
-    generationComplete
-  ])
+  }, [messages])
+
+  // Efecto para manejar el estado de carga
+  useEffect(() => {
+    setIsGenerating(isLoading)
+  }, [isLoading])
 
   useEffect(() => {
     if (generatedContent && !isEditing) {
@@ -337,42 +128,36 @@ export default function Page() {
     setError(null)
     setGeneratedContent("")
     setEditedContent("")
-    setGenerationComplete(false)
     setIsEditing(false)
     setHasUnsavedChanges(false)
-    setUploadedImages([])
     
     try {
-      const result = await generateArticle(articleData, options)
-      
-      // Procesar el stream de texto
-      for await (const chunk of result.textStream) {
-        setGeneratedContent(prev => prev + chunk)
-      }
-      
-      setGenerationComplete(true)
+      await append({
+        role: 'user',
+        content: 'generate_article'
+      }, {
+        body: {
+          articleData,
+          options
+        }
+      })
     } catch (error) {
       console.error('Error generating article:', error)
       setError(error instanceof Error ? error.message : 'Error desconocido al generar el artículo')
-    } finally {
       setIsGenerating(false)
     }
   }
 
   const handleDismiss = () => {
     setArticleData(null)
-    setGenerationComplete(false)
     setGeneratedContent("")
     setEditedContent("")
     setError(null)
     setIsEditing(false)
     setHasUnsavedChanges(false)
-    setUploadedImages([])
     setGeneratedTitles([])
     setShowTitlesPanel(false)
     setSelectedTitle(null)
-    // Limpiamos la sesion guardada
-    clearSession()
   }
 
   const handleGenerateTitles = async () => {
@@ -398,10 +183,21 @@ export default function Page() {
     }
   }
 
-  const handleSelectTitle = (title: string) => {
-    setSelectedTitle(title)
-    // Aquí podrías implementar lógica para reemplazar el título en el contenido
-    // Por ahora solo lo guardamos como seleccionado
+  const handleSelectTitle = async (title: string) => {
+    try {
+      await navigator.clipboard.writeText(title)
+      setSelectedTitle(title)
+      toast.success("Título copiado al portapapeles", {
+        description: `"${title.length > 50 ? title.substring(0, 50) + '...' : title}"`,
+        duration: 3000,
+      })
+    } catch (error) {
+      console.error('Error copying to clipboard:', error)
+      toast.error("Error al copiar el título", {
+        description: "No se pudo copiar el título al portapapeles",
+        duration: 3000,
+      })
+    }
   }
 
   const handleStartEdit = () => {
@@ -419,8 +215,6 @@ export default function Page() {
     setGeneratedContent(editedContent)
     setIsEditing(false)
     setHasUnsavedChanges(false)
-    setSaveSuccess(true)
-    setTimeout(() => setSaveSuccess(false), 2000)
   }
 
   const handleContentChange = (value: string) => {
@@ -454,89 +248,6 @@ export default function Page() {
     }
   }
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (files) {
-      Array.from(files).forEach(file => {
-        if (file.type.startsWith('image/')) {
-          const reader = new FileReader()
-          reader.onload = (e) => {
-            const imageUrl = e.target?.result as string
-            setUploadedImages(prev => [...prev, imageUrl])
-            
-            // Insertar imagen en el editor
-            const imageMarkdown = `\n\n![Imagen](${imageUrl})\n\n`
-            const textarea = editorRef.current
-            if (textarea) {
-              const start = textarea.selectionStart
-              const end = textarea.selectionEnd
-              const newContent = editedContent.slice(0, start) + imageMarkdown + editedContent.slice(end)
-              setEditedContent(newContent)
-              setHasUnsavedChanges(true)
-            }
-          }
-          reader.readAsDataURL(file)
-        }
-      })
-    }
-  }
-
-  const insertFormatting = (formatType: string) => {
-    const textarea = editorRef.current
-    if (!textarea) return
-
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const selectedText = editedContent.slice(start, end)
-    let newText = ""
-    let newContent = ""
-
-    switch (formatType) {
-      case 'bold':
-        newText = selectedText ? `**${selectedText}**` : '**texto en negrita**'
-        break
-      case 'italic':
-        newText = selectedText ? `*${selectedText}*` : '*texto en cursiva*'
-        break
-      case 'underline':
-        newText = selectedText ? `<u>${selectedText}</u>` : '<u>texto subrayado</u>'
-        break
-      case 'quote':
-        newText = selectedText ? `> ${selectedText}` : '> cita'
-        break
-      case 'list':
-        newText = selectedText ? `- ${selectedText}` : '- elemento de lista'
-        break
-      case 'orderedList':
-        newText = selectedText ? `1. ${selectedText}` : '1. elemento numerado'
-        break
-      case 'heading1':
-        newText = selectedText ? `# ${selectedText}` : '# Título Principal'
-        break
-      case 'heading2':
-        newText = selectedText ? `## ${selectedText}` : '## Subtítulo'
-        break
-      case 'heading3':
-        newText = selectedText ? `### ${selectedText}` : '### Título Menor'
-        break
-      default:
-        return
-    }
-
-    newContent = editedContent.slice(0, start) + newText + editedContent.slice(end)
-    setEditedContent(newContent)
-    setHasUnsavedChanges(true)
-
-    setTimeout(() => {
-      textarea.focus()
-      textarea.setSelectionRange(start + newText.length, start + newText.length)
-    }, 0)
-  }
-
-  const applyTextAlign = (align: 'left' | 'center' | 'right') => {
-    setTextFormat(prev => ({ ...prev, align }))
-  }
-
   const getLengthDescription = (length: string) => {
     switch (length) {
       case 'short': return '300-500 palabras'
@@ -558,19 +269,6 @@ export default function Page() {
 
   const getWordCount = (text: string) => {
     return text.trim() === '' ? 0 : text.trim().split(/\s+/).length
-  }
-
-  const getFontFamilyStyle = (fontFamily: string) => {
-    switch (fontFamily) {
-      case 'serif':
-        return 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif'
-      case 'sans-serif':
-        return 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
-      case 'mono':
-        return 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
-      default:
-        return 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif'
-    }
   }
 
   return (
@@ -602,11 +300,6 @@ export default function Page() {
                             <Badge variant="secondary" className="ml-2">
                               <Edit3 className="h-3 w-3 mr-1" />
                               Editando
-                            </Badge>
-                          )}
-                          {(generatedContent || editedContent) && (
-                            <Badge variant="outline" className="ml-2 text-xs bg-green-50 text-green-700">
-                              📁 Sesión guardada
                             </Badge>
                           )}
                         </CardTitle>
@@ -664,7 +357,7 @@ export default function Page() {
                     </CardContent>
                   </Card>
 
-                  {/* Mostrar la configuracion no se genero el articulo */}
+                  {/* Configuración del artículo */}
                   {!generatedContent && !isGenerating && (
                     <Card className="border-2">
                       <CardHeader className="pb-6">
@@ -679,7 +372,7 @@ export default function Page() {
                             <Label htmlFor="tone" className="text-base font-medium">
                               Tono del artículo
                             </Label>
-                            <Select value={options.tone} onValueChange={(value) => setOptions(prev => ({ ...prev, tone: value as any }))}>
+                            <Select value={options.tone} onValueChange={(value) => setOptions(prev => ({ ...prev, tone: value as GenerateArticleOptions['tone'] }))}>
                               <SelectTrigger id="tone" className="h-12">
                                 <SelectValue placeholder="Selecciona el tono" />
                               </SelectTrigger>
@@ -696,7 +389,7 @@ export default function Page() {
                             <Label htmlFor="length" className="text-base font-medium">
                               Longitud del artículo
                             </Label>
-                            <Select value={options.length} onValueChange={(value) => setOptions(prev => ({ ...prev, length: value as any }))}>
+                            <Select value={options.length} onValueChange={(value) => setOptions(prev => ({ ...prev, length: value as GenerateArticleOptions['length'] }))}>
                               <SelectTrigger id="length" className="h-12">
                                 <SelectValue placeholder="Selecciona la longitud" />
                               </SelectTrigger>
@@ -715,7 +408,7 @@ export default function Page() {
                             <Label htmlFor="focus" className="text-base font-medium">
                               Enfoque editorial
                             </Label>
-                            <Select value={options.focus} onValueChange={(value) => setOptions(prev => ({ ...prev, focus: value as any }))}>
+                            <Select value={options.focus} onValueChange={(value) => setOptions(prev => ({ ...prev, focus: value as GenerateArticleOptions['focus'] }))}>
                               <SelectTrigger id="focus" className="h-12">
                                 <SelectValue placeholder="Selecciona el enfoque" />
                               </SelectTrigger>
@@ -753,37 +446,20 @@ export default function Page() {
                     </Card>
                   )}
 
-                  {/* Estado de generación */}
+                  {/* Generando contenido */}
                   {isGenerating && (
-                    <Card className="border-2">
-                      <CardContent className="flex flex-col items-center justify-center py-16">
-                        <div className="text-center space-y-8 max-w-md">
-                          <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto" />
-                          
-                          <div className="space-y-3">
-                            <h3 className="font-semibold text-xl">Generando tu artículo...</h3>
-                            <p className="text-base text-muted-foreground">
-                              Nuestro sistema de IA está trabajando en tu contenido
+                    <Card className="border-2 border-blue-200 bg-blue-50/50">
+                      <CardContent className="py-8">
+                        <div className="text-center space-y-4">
+                          <div className="flex items-center justify-center">
+                            <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
+                          </div>
+                          <div className="space-y-2">
+                            <h3 className="font-semibold text-blue-900">Generando artículo...</h3>
+                            <p className="text-blue-700 text-sm">
+                              Creando contenido periodístico basado en la información proporcionada
                             </p>
                           </div>
-
-                          {/* Mostrar contenido mientras se genera */}
-                          {generatedContent && (
-                            <div className="w-full text-left">
-                              <div className="max-h-[300px] overflow-y-auto border rounded-lg p-4 bg-gray-50">
-                                <div 
-                                  className="prose prose-sm max-w-none whitespace-pre-wrap leading-relaxed text-sm"
-                                  style={{ 
-                                    fontFamily: 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif',
-                                    lineHeight: '1.6'
-                                  }}
-                                >
-                                  {generatedContent}
-                                  <span className="inline-block w-2 h-4 bg-blue-500 ml-1 animate-pulse"></span>
-                                </div>
-                              </div>
-                            </div>
-                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -792,448 +468,160 @@ export default function Page() {
                   {/* Error */}
                   {error && (
                     <Card className="border-2 border-red-200 bg-red-50/50">
-                      <CardContent className="flex flex-col items-center justify-center py-8">
-                        <div className="text-center space-y-4 max-w-md">
+                      <CardContent className="py-8">
+                        <div className="text-center space-y-4 max-w-md mx-auto">
                           <div className="p-4 bg-red-100 rounded-full w-fit mx-auto">
-                            <X className="h-8 w-8 text-red-600" />
+                            <AlertCircle className="h-8 w-8 text-red-600" />
                           </div>
                           <div className="space-y-2">
-                            <h3 className="font-semibold text-lg text-red-900">Error al generar artículo</h3>
-                            <p className="text-sm text-red-700">{error}</p>
+                            <h3 className="font-semibold text-red-900">Error al generar el artículo</h3>
+                            <p className="text-red-700 text-sm">{error}</p>
                           </div>
-                          <Button variant="outline" onClick={handleGenerateDocument} className="px-6">
-                            Intentar de nuevo
+                          <Button 
+                            onClick={handleGenerateDocument}
+                            disabled={isGenerating}
+                            className="px-4 py-2 h-auto"
+                          >
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Reintentar
                           </Button>
                         </div>
                       </CardContent>
                     </Card>
                   )}
 
-                  {/* Articulo generado */}
-                  {generatedContent && generationComplete && (
-                    <div className="space-y-6">
-                      {/* Barra de acciones */}
-                      <Card className={`border-2 ${isEditing ? 'border-orange-200 bg-orange-50/50' : 'border-green-200 bg-green-50/50'}`}>
-                        <CardContent className="pt-6 pb-6">
-                          <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-                            <div className="flex items-center gap-3">
-                              <Badge variant="secondary" className={`px-4 py-2 ${isEditing ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>
-                                {isEditing ? (
-                                  <>
-                                    <Edit3 className="h-4 w-4 mr-2" />
-                                    Modo edición
-                                  </>
-                                ) : (
-                                  <>
-                                    <Check className="h-4 w-4 mr-2" />
-                                    Artículo generado exitosamente
-                                  </>
-                                )}
+                  {/* Contenido generado */}
+                  {generatedContent && (
+                    <Card className="border-2">
+                      <CardHeader className="pb-6">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="flex items-center gap-3 text-xl">
+                            <FileText className="h-5 w-5 text-green-600" />
+                            Artículo Generado
+                            {isEditing && (
+                              <Badge variant="secondary" className="ml-2">
+                                <Edit3 className="h-3 w-3 mr-1" />
+                                Editando
                               </Badge>
-                              {(editedContent || generatedContent) && (
-                                <span className="text-sm text-muted-foreground">
-                                  {getWordCount(isEditing ? editedContent : generatedContent)} palabras
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-3">
-                              {/* Controles de edición */}
-                              {isEditing ? (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    onClick={handleSaveEdit}
-                                    disabled={!hasUnsavedChanges}
-                                    className={`px-4 py-2 h-auto ${saveSuccess ? 'bg-green-600 hover:bg-green-700' : ''}`}
-                                  >
-                                    {saveSuccess ? <Check className="h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                                    {saveSuccess ? 'Guardado' : 'Guardar'}
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={handleCancelEdit}
-                                    className="px-4 py-2 h-auto"
-                                  >
-                                    <RotateCcw className="h-4 w-4 mr-2" />
-                                    Cancelar
-                                  </Button>
-                                </>
-                              ) : (
+                            )}
+                          </CardTitle>
+                          <div className="flex items-center gap-2">
+                            <Popover>
+                              <PopoverTrigger asChild>
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={handleStartEdit}
+                                  disabled={isGeneratingTitles}
                                   className="px-4 py-2 h-auto"
                                 >
-                                  <Edit3 className="h-4 w-4 mr-2" />
-                                  Editar
-                                </Button>
-                              )}
-                              
-                              {/* Controles de exportación */}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleCopy}
-                                className={`px-4 py-2 h-auto ${copySuccess ? 'bg-green-50 border-green-200 text-green-700' : ''}`}
-                              >
-                                {copySuccess ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
-                                {copySuccess ? 'Copiado' : 'Copiar'}
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleDownload}
-                                className={`px-4 py-2 h-auto ${downloadSuccess ? 'bg-green-50 border-green-200 text-green-700' : ''}`}
-                              >
-                                {downloadSuccess ? <Check className="h-4 w-4 mr-2" /> : <Download className="h-4 w-4 mr-2" />}
-                                {downloadSuccess ? 'Descargado' : 'Descargar'}
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setGeneratedContent("")
-                                  setEditedContent("")
-                                  setGenerationComplete(false)
-                                  setError(null)
-                                  setIsEditing(false)
-                                  setHasUnsavedChanges(false)
-                                  setUploadedImages([])
-                                  setGeneratedTitles([])
-                                  setShowTitlesPanel(false)
-                                  setSelectedTitle(null)
-                                }}
-                                className="px-4 py-2 h-auto"
-                              >
-                                <Sparkles className="h-4 w-4 mr-2" />
-                                Nuevo
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleGenerateTitles}
-                                disabled={isGeneratingTitles || !generatedContent}
-                                className="px-4 py-2 h-auto"
-                              >
-                                {isGeneratingTitles ? (
-                                  <>
+                                  {isGeneratingTitles ? (
                                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                    Generando...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Lightbulb className="h-4 w-4 mr-2" />
-                                    Títulos IA
-                                  </>
-                                )}
-                              </Button>
-                            </div>
-                          </div>
-
-                          {/* Advertencia de cambios no guardados */}
-                          {hasUnsavedChanges && (
-                            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                              <p className="text-sm text-yellow-800">
-                                ⚠️ Tienes cambios sin guardar. Asegurate de guardar antes de salir.
-                              </p>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-
-                      {/* Barra de herramientas de formato (solo en modo edición) */}
-                      {isEditing && (
-                        <Card className="border-2 border-blue-200 bg-blue-50/30">
-                          <CardHeader className="pb-3">
-                            <CardTitle className="flex items-center gap-3 text-lg">
-                              <Type className="h-5 w-5" />
-                              Herramientas de formato
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            {/* Fila 1: Formato básico */}
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="flex items-center gap-1 bg-white rounded-lg p-1 border">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => insertFormatting('bold')}
-                                  className="h-8 w-8 p-0"
-                                  title="Negrita"
-                                >
-                                  <Bold className="h-4 w-4" />
+                                  ) : (
+                                    <>
+                                      <Wand2 className="h-4 w-4 mr-2" />
+                                      Títulos IA ({titleCount})
+                                    </>
+                                  )}
+                                  <ChevronDown className="ml-2 h-4 w-4" />
                                 </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => insertFormatting('italic')}
-                                  className="h-8 w-8 p-0"
-                                  title="Cursiva"
-                                >
-                                  <Italic className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => insertFormatting('underline')}
-                                  className="h-8 w-8 p-0"
-                                  title="Subrayado"
-                                >
-                                  <Underline className="h-4 w-4" />
-                                </Button>
-                              </div>
-
-                              <div className="flex items-center gap-1 bg-white rounded-lg p-1 border">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => insertFormatting('heading1')}
-                                  className="h-8 px-2 text-xs font-bold"
-                                  title="Título Principal"
-                                >
-                                  H1
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => insertFormatting('heading2')}
-                                  className="h-8 px-2 text-xs font-bold"
-                                  title="Subtítulo"
-                                >
-                                  H2
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => insertFormatting('heading3')}
-                                  className="h-8 px-2 text-xs font-bold"
-                                  title="Título Menor"
-                                >
-                                  H3
-                                </Button>
-                              </div>
-
-                              <div className="flex items-center gap-1 bg-white rounded-lg p-1 border">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => insertFormatting('list')}
-                                  className="h-8 w-8 p-0"
-                                  title="Lista"
-                                >
-                                  <List className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => insertFormatting('orderedList')}
-                                  className="h-8 w-8 p-0"
-                                  title="Lista numerada"
-                                >
-                                  <ListOrdered className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => insertFormatting('quote')}
-                                  className="h-8 w-8 p-0"
-                                  title="Cita"
-                                >
-                                  <Quote className="h-4 w-4" />
-                                </Button>
-                              </div>
-
-                              <div className="flex items-center gap-1 bg-white rounded-lg p-1 border">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => fileInputRef.current?.click()}
-                                  className="h-8 w-8 p-0"
-                                  title="Agregar imagen"
-                                >
-                                  <Image className="h-4 w-4" />
-                                </Button>
-                                <input
-                                  ref={fileInputRef}
-                                  type="file"
-                                  accept="image/*"
-                                  multiple
-                                  onChange={handleImageUpload}
-                                  className="hidden"
-                                />
-                              </div>
-                            </div>
-
-                            {/* Fila 2: Tipografía y estilo */}
-                            <div className="flex flex-wrap items-center gap-3">
-                              <div className="flex items-center gap-2">
-                                <Label className="text-sm font-medium">Fuente:</Label>
-                                <Select 
-                                  value={textFormat.fontFamily} 
-                                  onValueChange={(value) => setTextFormat(prev => ({ ...prev, fontFamily: value }))}
-                                >
-                                  <SelectTrigger className="w-32 h-8">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="serif">Serif</SelectItem>
-                                    <SelectItem value="sans-serif">Sans Serif</SelectItem>
-                                    <SelectItem value="mono">Monospace</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                <Label className="text-sm font-medium">Tamaño:</Label>
-                                <Select 
-                                  value={textFormat.fontSize} 
-                                  onValueChange={(value) => setTextFormat(prev => ({ ...prev, fontSize: value }))}
-                                >
-                                  <SelectTrigger className="w-20 h-8">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="12px">12px</SelectItem>
-                                    <SelectItem value="14px">14px</SelectItem>
-                                    <SelectItem value="16px">16px</SelectItem>
-                                    <SelectItem value="18px">18px</SelectItem>
-                                    <SelectItem value="20px">20px</SelectItem>
-                                    <SelectItem value="24px">24px</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                <Label className="text-sm font-medium">Color:</Label>
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-8 w-16 p-0"
-                                    >
-                                      <div 
-                                        className="w-full h-full rounded"
-                                        style={{ backgroundColor: textFormat.color }}
-                                      />
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-auto p-3">
-                                    <div className="space-y-2">
-                                      <Label className="text-sm font-medium">Color del texto</Label>
-                                      <Input
-                                        type="color"
-                                        value={textFormat.color}
-                                        onChange={(e) => setTextFormat(prev => ({ ...prev, color: e.target.value }))}
-                                        className="w-16 h-8 p-0 border-0"
-                                      />
-                                    </div>
-                                  </PopoverContent>
-                                </Popover>
-                              </div>
-
-                              <div className="flex items-center gap-1 bg-white rounded-lg p-1 border">
-                                <Button
-                                  variant={textFormat.align === 'left' ? 'default' : 'ghost'}
-                                  size="sm"
-                                  onClick={() => applyTextAlign('left')}
-                                  className="h-8 w-8 p-0"
-                                  title="Alinear izquierda"
-                                >
-                                  <AlignLeft className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant={textFormat.align === 'center' ? 'default' : 'ghost'}
-                                  size="sm"
-                                  onClick={() => applyTextAlign('center')}
-                                  className="h-8 w-8 p-0"
-                                  title="Centrar"
-                                >
-                                  <AlignCenter className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant={textFormat.align === 'right' ? 'default' : 'ghost'}
-                                  size="sm"
-                                  onClick={() => applyTextAlign('right')}
-                                  className="h-8 w-8 p-0"
-                                  title="Alinear derecha"
-                                >
-                                  <AlignRight className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-
-                            {/* Imágenes subidas */}
-                            {uploadedImages.length > 0 && (
-                              <div className="space-y-2">
-                                <Label className="text-sm font-medium">Imágenes subidas:</Label>
-                                <div className="flex flex-wrap gap-2">
-                                  {uploadedImages.map((image, index) => (
-                                    <div key={index} className="relative">
-                                      <img
-                                        src={image}
-                                        alt={`Imagen ${index + 1}`}
-                                        className="w-16 h-16 object-cover rounded border"
-                                      />
-                                      <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== index))}
-                                        className="absolute -top-2 -right-2 h-5 w-5 p-0 rounded-full"
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      )}
-
-                      {/* Panel de títulos generados */}
-                      {showTitlesPanel && generatedTitles.length > 0 && (
-                        <Card className="border-2 border-purple-200 bg-purple-50/30">
-                          <CardHeader className="pb-4">
-                            <div className="flex items-center justify-between">
-                              <CardTitle className="flex items-center gap-3 text-lg">
-                                <Lightbulb className="h-5 w-5 text-purple-600" />
-                                Títulos alternativos generados
-                              </CardTitle>
-                              <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2">
-                                  <Label className="text-sm font-medium">Cantidad:</Label>
-                                  <Select 
-                                    value={titleCount.toString()} 
-                                    onValueChange={(value) => setTitleCount(parseInt(value))}
+                              </PopoverTrigger>
+                              <PopoverContent className="w-64">
+                                <div className="grid gap-4">
+                                  <div className="space-y-2">
+                                    <h4 className="font-medium leading-none">Generar títulos alternativos</h4>
+                                    <p className="text-sm text-muted-foreground">
+                                      Selecciona cuántos títulos quieres generar
+                                    </p>
+                                  </div>
+                                  <div className="grid gap-2">
+                                    <Label htmlFor="titleCount" className="text-sm font-medium">
+                                      Cantidad de títulos
+                                    </Label>
+                                    <Select onValueChange={(value) => setTitleCount(Number(value))} value={titleCount.toString()}>
+                                      <SelectTrigger id="titleCount" className="h-8">
+                                        <SelectValue placeholder="Selecciona una cantidad" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="1">1 título</SelectItem>
+                                        <SelectItem value="2">2 títulos</SelectItem>
+                                        <SelectItem value="3">3 títulos</SelectItem>
+                                        <SelectItem value="4">4 títulos</SelectItem>
+                                        <SelectItem value="5">5 títulos</SelectItem>
+                                        <SelectItem value="6">6 títulos</SelectItem>
+                                        <SelectItem value="7">7 títulos</SelectItem>
+                                        <SelectItem value="8">8 títulos</SelectItem>
+                                        <SelectItem value="9">9 títulos</SelectItem>
+                                        <SelectItem value="10">10 títulos</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <Button
+                                    onClick={handleGenerateTitles}
+                                    disabled={isGeneratingTitles}
+                                    className="w-full"
                                   >
-                                    <SelectTrigger className="w-20 h-8">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="3">3</SelectItem>
-                                      <SelectItem value="5">5</SelectItem>
-                                      <SelectItem value="7">7</SelectItem>
-                                      <SelectItem value="10">10</SelectItem>
-                                    </SelectContent>
-                                  </Select>
+                                    {isGeneratingTitles ? (
+                                      <>
+                                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                        Generando...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Wand2 className="h-4 w-4 mr-2" />
+                                        Generar {titleCount} título{titleCount !== 1 ? 's' : ''}
+                                      </>
+                                    )}
+                                  </Button>
                                 </div>
+                              </PopoverContent>
+                            </Popover>
+                            
+                            {!isEditing ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleStartEdit}
+                                className="px-4 py-2 h-auto"
+                              >
+                                <Edit3 className="h-4 w-4 mr-2" />
+                                Editar
+                              </Button>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={handleSaveEdit}
+                                  disabled={!hasUnsavedChanges}
+                                  className="px-4 py-2 h-auto"
+                                >
+                                  <Save className="h-4 w-4 mr-2" />
+                                  Guardar
+                                </Button>
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={handleGenerateTitles}
-                                  disabled={isGeneratingTitles}
-                                  className="px-3 py-1 h-8"
+                                  onClick={handleCancelEdit}
+                                  className="px-4 py-2 h-auto"
                                 >
-                                  {isGeneratingTitles ? (
-                                    <RefreshCw className="h-3 w-3 animate-spin" />
-                                  ) : (
-                                    <RefreshCw className="h-3 w-3" />
-                                  )}
+                                  <X className="h-4 w-4 mr-2" />
+                                  Cancelar
                                 </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        {/* Panel de títulos generados */}
+                        {showTitlesPanel && generatedTitles.length > 0 && (
+                          <Card className="border-2 border-purple-200 bg-purple-50/50">
+                            <CardHeader className="pb-4">
+                              <div className="flex items-center justify-between">
+                                <CardTitle className="flex items-center gap-3 text-lg">
+                                  <Wand2 className="h-5 w-5 text-purple-600" />
+                                  Títulos alternativos generados
+                                </CardTitle>
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -1243,147 +631,115 @@ export default function Page() {
                                   <X className="h-4 w-4" />
                                 </Button>
                               </div>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <div className="space-y-3">
+                            </CardHeader>
+                            <CardContent className="space-y-3">
                               {generatedTitles.map((titleData, index) => (
                                 <div
                                   key={index}
-                                  className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                                  className={`p-3 rounded-lg border-2 cursor-pointer transition-all hover:scale-[1.02] ${
                                     selectedTitle === titleData.title
-                                      ? 'border-purple-500 bg-purple-100'
-                                      : 'border-gray-200 bg-white hover:border-purple-300 hover:bg-purple-50'
+                                      ? 'border-purple-400 bg-purple-100'
+                                      : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50'
                                   }`}
                                   onClick={() => handleSelectTitle(titleData.title)}
+                                  title="Haz clic para copiar al portapapeles"
                                 >
                                   <div className="space-y-2">
-                                    <div className="flex items-start justify-between">
-                                      <h4 className="font-semibold text-gray-900 leading-tight">
-                                        {titleData.title}
-                                      </h4>
-                                      {selectedTitle === titleData.title && (
-                                        <Badge variant="secondary" className="bg-purple-100 text-purple-800">
-                                          <Check className="h-3 w-3 mr-1" />
-                                          Seleccionado
-                                        </Badge>
-                                      )}
+                                    <div className="flex items-start justify-between gap-2">
+                                      <h4 className="font-medium text-gray-900 flex-1">{titleData.title}</h4>
+                                      <div className="flex items-center gap-1 text-gray-400">
+                                        <Copy className="h-3 w-3" />
+                                        {selectedTitle === titleData.title && (
+                                          <Check className="h-3 w-3 text-green-500" />
+                                        )}
+                                      </div>
                                     </div>
-                                    <p className="text-sm text-gray-600 leading-relaxed">
-                                      {titleData.reason}
-                                    </p>
-                                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                                      <span>{titleData.title.length} caracteres</span>
-                                      <span>•</span>
-                                      <span>
-                                        {titleData.title.length <= 60 ? '✓ Óptimo para SEO' : 
-                                         titleData.title.length <= 80 ? '⚠ Largo para SEO' : 
-                                         '❌ Muy largo'}
-                                      </span>
-                                    </div>
+                                    <p className="text-sm text-gray-600">{titleData.reason}</p>
                                   </div>
                                 </div>
                               ))}
-                            </div>
-                            
-                            {selectedTitle && (
-                              <div className="p-4 bg-purple-100 rounded-lg border border-purple-200">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Check className="h-4 w-4 text-purple-600" />
-                                  <span className="font-medium text-purple-900">Título seleccionado:</span>
-                                </div>
-                                <p className="text-purple-800 font-semibold">{selectedTitle}</p>
-                                <div className="flex items-center gap-2 mt-2">
-                                  <Button
-                                    size="sm"
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(selectedTitle)
-                                    }}
-                                    className="px-3 py-1 h-8"
-                                  >
-                                    <Copy className="h-3 w-3 mr-1" />
-                                    Copiar
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setSelectedTitle(null)}
-                                    className="px-3 py-1 h-8"
-                                  >
-                                    Deseleccionar
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      )}
+                            </CardContent>
+                          </Card>
+                        )}
 
-                      {/* Contenido del articulo */}
-                      <Card className="border-2">
-                        <CardHeader className="pb-4">
-                          <CardTitle className="flex items-center gap-3 text-xl">
-                            <FileText className="h-5 w-5" />
-                            {isEditing ? 'Editando artículo' : 'Artículo generado'}
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="pt-0">
+                        {/* Editor de contenido */}
+                        <div className="space-y-4">
                           {isEditing ? (
                             <div className="space-y-4">
-                              <Label htmlFor="article-editor" className="text-sm font-medium">
-                                Editor de artículo
-                              </Label>
-                              <Textarea
-                                ref={editorRef}
-                                id="article-editor"
-                                value={editedContent}
-                                onChange={(e) => handleContentChange(e.target.value)}
-                                className="min-h-[600px] resize-none"
-                                style={{ 
-                                  fontFamily: getFontFamilyStyle(textFormat.fontFamily),
-                                  fontSize: textFormat.fontSize,
-                                  color: textFormat.color,
-                                  textAlign: textFormat.align,
-                                  lineHeight: '1.7'
-                                }}
-                                placeholder="Editá tu artículo aquí..."
-                              />
-                              <div className="flex justify-between items-center text-sm text-muted-foreground">
-                                <span>{getWordCount(editedContent)} palabras</span>
-                                <div className="flex items-center gap-4">
-                                  <span>Usa **texto** para negrita</span>
-                                  <span>Usa *texto* para cursiva</span>
-                                  <span>Usa # para títulos</span>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-gray-600">
+                                    Palabras: {getWordCount(editedContent)}
+                                  </span>
+                                  {hasUnsavedChanges && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      Cambios sin guardar
+                                    </Badge>
+                                  )}
                                 </div>
                               </div>
+                              <Textarea
+                                value={editedContent}
+                                onChange={(e) => handleContentChange(e.target.value)}
+                                className="min-h-[400px] resize-none"
+                                placeholder="Escribe tu artículo aquí..."
+                              />
                             </div>
                           ) : (
-                            <div className="max-h-[600px] overflow-y-auto border rounded-lg p-6 bg-gray-50/30">
-                              <div 
-                                className="prose prose-sm max-w-none whitespace-pre-wrap leading-relaxed"
-                                style={{ 
-                                  fontFamily: 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif',
-                                  lineHeight: '1.7'
-                                }}
-                              >
-                                {generatedContent}
+                            <div className="prose prose-gray max-w-none">
+                              <div className="bg-gray-50 p-6 rounded-lg border">
+                                <pre className="whitespace-pre-wrap font-sans text-gray-900 leading-relaxed">
+                                  {generatedContent}
+                                </pre>
                               </div>
                             </div>
                           )}
-                        </CardContent>
-                      </Card>
-                    </div>
+                        </div>
+
+                        {/* Acciones */}
+                        <div className="flex items-center gap-3 pt-4 border-t">
+                          <Button
+                            variant="outline"
+                            onClick={handleCopy}
+                            className={`px-4 py-2 h-auto ${copySuccess ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
+                          >
+                            {copySuccess ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+                            {copySuccess ? 'Copiado' : 'Copiar'}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={handleDownload}
+                            className={`px-4 py-2 h-auto ${downloadSuccess ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
+                          >
+                            {downloadSuccess ? <Check className="h-4 w-4 mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+                            {downloadSuccess ? 'Descargado' : 'Descargar'}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
                   )}
                 </div>
               )}
 
+              {/* Sin datos de artículo */}
               {!articleData && (
-                <>
-                  {/* Chequeamos si hay sesion guardada */}
-                  <div className="px-4 lg:px-6">
-                    <SessionRestoreCard onRestore={loadSession} />
-                  </div>
-                </>
+                <div className="px-4 lg:px-6">
+                  <Card className="border-2 border-gray-200">
+                    <CardContent className="py-12">
+                      <div className="text-center space-y-4 max-w-md mx-auto">
+                        <div className="p-4 bg-gray-100 rounded-full w-fit mx-auto">
+                          <FileText className="h-8 w-8 text-gray-400" />
+                        </div>
+                        <div className="space-y-2">
+                          <h3 className="font-semibold text-gray-900">No hay artículo seleccionado</h3>
+                          <p className="text-gray-600 text-sm">
+                            Ve a la página de búsqueda y selecciona un artículo para generar contenido con IA.
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               )}
             </div>
           </div>

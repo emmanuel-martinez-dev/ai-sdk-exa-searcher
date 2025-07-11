@@ -71,14 +71,19 @@ export const StreamingResultCard = React.memo(({
       summary: result.summary,
       url: result.url,
       publishedDate: result.publishedDate,
-      text: result.text
+      text: result.text,
+      timestamp: Date.now() // Agregar timestamp único
     }
     
-    // Guardar los datos en localStorage para acceder desde el dashboard
+    // Limpiar datos previos y guardar los nuevos
+    localStorage.removeItem('articleData')
     localStorage.setItem('articleData', JSON.stringify(articleData))
     
-    // Redirigir al dashboard
-    router.push('/dashboard')
+    // Pequeña demora para asegurar que los datos se guarden
+    setTimeout(() => {
+      // Redirigir al dashboard
+      router.push('/dashboard')
+    }, 100)
   }
 
   return (

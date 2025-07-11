@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@ai-sdk/openai": "2.0.0-beta.5",
+    "@ai-sdk/openai": "1.3.23",
     "@ai-sdk/react": "2.0.0-beta.9",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/modifiers": "^9.0.0",
@@ -30,7 +30,7 @@
     "@radix-ui/react-tooltip": "^1.2.7",
     "@tabler/icons-react": "^3.34.0",
     "@tanstack/react-table": "^8.21.3",
-    "ai": "5.0.0-beta.9",
+    "ai": "4.3.17",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "exa-js": "^1.8.19",
