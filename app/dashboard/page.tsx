@@ -7,13 +7,11 @@ import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { AppSidebar } from "@/components/dashboard/app-sidebar"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { SiteHeader } from "@/components/dashboard/site-header"
 import { generateTitles } from "@/actions/vercel-actions/generate-titles"
 import { useChat } from 'ai/react'
-import { toast } from "sonner"
 import {
   FileText,
   Sparkles,
@@ -28,8 +26,7 @@ import {
   Wand2,
   Check,
   AlertCircle,
-  RefreshCw,
-  ChevronDown
+  RefreshCw
 } from "lucide-react"
 
 interface ArticleData {
@@ -63,7 +60,7 @@ export default function Page() {
   const [isGeneratingTitles, setIsGeneratingTitles] = useState(false)
   const [generatedTitles, setGeneratedTitles] = useState<Array<{title: string, reason: string}>>([])
   const [showTitlesPanel, setShowTitlesPanel] = useState(false)
-  const [titleCount, setTitleCount] = useState(5)
+  const [titleCount] = useState(5)
   const [selectedTitle, setSelectedTitle] = useState<string | null>(null)
   
   // Opciones de tono
@@ -86,14 +83,13 @@ export default function Page() {
     }
   })
 
-  // Cargar datos del artículo desde localStorage al inicializar (solo una vez)
   useEffect(() => {
     const storedArticleData = localStorage.getItem('articleData')
     if (storedArticleData) {
       try {
         const parsedData = JSON.parse(storedArticleData)
         setArticleData(parsedData)
-        localStorage.removeItem('articleData') // Limpiar después de usar
+        localStorage.removeItem('articleData')
       } catch (error) {
         console.error('Error parsing article data:', error)
       }
@@ -183,21 +179,8 @@ export default function Page() {
     }
   }
 
-  const handleSelectTitle = async (title: string) => {
-    try {
-      await navigator.clipboard.writeText(title)
-      setSelectedTitle(title)
-      toast.success("Título copiado al portapapeles", {
-        description: `"${title.length > 50 ? title.substring(0, 50) + '...' : title}"`,
-        duration: 3000,
-      })
-    } catch (error) {
-      console.error('Error copying to clipboard:', error)
-      toast.error("Error al copiar el título", {
-        description: "No se pudo copiar el título al portapapeles",
-        duration: 3000,
-      })
-    }
+  const handleSelectTitle = (title: string) => {
+    setSelectedTitle(title)
   }
 
   const handleStartEdit = () => {
@@ -357,7 +340,6 @@ export default function Page() {
                     </CardContent>
                   </Card>
 
-                  {/* Configuración del artículo */}
                   {!generatedContent && !isGenerating && (
                     <Card className="border-2">
                       <CardHeader className="pb-6">
@@ -506,75 +488,22 @@ export default function Page() {
                             )}
                           </CardTitle>
                           <div className="flex items-center gap-2">
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={isGeneratingTitles}
-                                  className="px-4 py-2 h-auto"
-                                >
-                                  {isGeneratingTitles ? (
-                                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <Wand2 className="h-4 w-4 mr-2" />
-                                      Títulos IA ({titleCount})
-                                    </>
-                                  )}
-                                  <ChevronDown className="ml-2 h-4 w-4" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-64">
-                                <div className="grid gap-4">
-                                  <div className="space-y-2">
-                                    <h4 className="font-medium leading-none">Generar títulos alternativos</h4>
-                                    <p className="text-sm text-muted-foreground">
-                                      Selecciona cuántos títulos quieres generar
-                                    </p>
-                                  </div>
-                                  <div className="grid gap-2">
-                                    <Label htmlFor="titleCount" className="text-sm font-medium">
-                                      Cantidad de títulos
-                                    </Label>
-                                    <Select onValueChange={(value) => setTitleCount(Number(value))} value={titleCount.toString()}>
-                                      <SelectTrigger id="titleCount" className="h-8">
-                                        <SelectValue placeholder="Selecciona una cantidad" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="1">1 título</SelectItem>
-                                        <SelectItem value="2">2 títulos</SelectItem>
-                                        <SelectItem value="3">3 títulos</SelectItem>
-                                        <SelectItem value="4">4 títulos</SelectItem>
-                                        <SelectItem value="5">5 títulos</SelectItem>
-                                        <SelectItem value="6">6 títulos</SelectItem>
-                                        <SelectItem value="7">7 títulos</SelectItem>
-                                        <SelectItem value="8">8 títulos</SelectItem>
-                                        <SelectItem value="9">9 títulos</SelectItem>
-                                        <SelectItem value="10">10 títulos</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  <Button
-                                    onClick={handleGenerateTitles}
-                                    disabled={isGeneratingTitles}
-                                    className="w-full"
-                                  >
-                                    {isGeneratingTitles ? (
-                                      <>
-                                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                        Generando...
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Wand2 className="h-4 w-4 mr-2" />
-                                        Generar {titleCount} título{titleCount !== 1 ? 's' : ''}
-                                      </>
-                                    )}
-                                  </Button>
-                                </div>
-                              </PopoverContent>
-                            </Popover>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleGenerateTitles}
+                              disabled={isGeneratingTitles}
+                              className="px-4 py-2 h-auto"
+                            >
+                              {isGeneratingTitles ? (
+                                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <>
+                                  <Wand2 className="h-4 w-4 mr-2" />
+                                  Títulos IA
+                                </>
+                              )}
+                            </Button>
                             
                             {!isEditing ? (
                               <Button
@@ -613,7 +542,7 @@ export default function Page() {
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-6">
-                        {/* Panel de títulos generados */}
+                        {/* Panel de titulos generados */}
                         {showTitlesPanel && generatedTitles.length > 0 && (
                           <Card className="border-2 border-purple-200 bg-purple-50/50">
                             <CardHeader className="pb-4">
@@ -636,24 +565,15 @@ export default function Page() {
                               {generatedTitles.map((titleData, index) => (
                                 <div
                                   key={index}
-                                  className={`p-3 rounded-lg border-2 cursor-pointer transition-all hover:scale-[1.02] ${
+                                  className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
                                     selectedTitle === titleData.title
                                       ? 'border-purple-400 bg-purple-100'
                                       : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50'
                                   }`}
                                   onClick={() => handleSelectTitle(titleData.title)}
-                                  title="Haz clic para copiar al portapapeles"
                                 >
                                   <div className="space-y-2">
-                                    <div className="flex items-start justify-between gap-2">
-                                      <h4 className="font-medium text-gray-900 flex-1">{titleData.title}</h4>
-                                      <div className="flex items-center gap-1 text-gray-400">
-                                        <Copy className="h-3 w-3" />
-                                        {selectedTitle === titleData.title && (
-                                          <Check className="h-3 w-3 text-green-500" />
-                                        )}
-                                      </div>
-                                    </div>
+                                    <h4 className="font-medium text-gray-900">{titleData.title}</h4>
                                     <p className="text-sm text-gray-600">{titleData.reason}</p>
                                   </div>
                                 </div>
@@ -721,7 +641,7 @@ export default function Page() {
                 </div>
               )}
 
-              {/* Sin datos de artículo */}
+              {/* Sin datos de articulo */}
               {!articleData && (
                 <div className="px-4 lg:px-6">
                   <Card className="border-2 border-gray-200">
