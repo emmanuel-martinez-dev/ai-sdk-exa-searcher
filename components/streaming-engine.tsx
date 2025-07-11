@@ -3,6 +3,18 @@
 import { useState, useMemo } from "react"
 import type { StreamingResult } from "./streaming-result-card"
 
+interface ExaSearchResult {
+  id: string
+  title: string
+  url: string
+  publishedDate: string
+  author: string
+  text?: string
+  summary?: string
+  image?: string
+  favicon?: string
+}
+
 interface StreamingState {
   currentResultIndex: number
   currentField: 'title' | 'author' | 'date' | 'summary' | 'url' | 'complete'
@@ -30,7 +42,7 @@ export const useStreamingEngine = () => {
            streamingState.currentResultIndex < streamingState.results.length - 1
   }, [streamingState.isComplete, streamingState.currentResultIndex, streamingState.results.length])
 
-  const simulateProgressiveStreaming = async (exaResults: any[]) => {
+  const simulateProgressiveStreaming = async (exaResults: ExaSearchResult[]) => {
     setIsStreaming(true)
     
     // Crear resultados iniciales con IDs únicos y estables

@@ -16,7 +16,7 @@ Instalar y correr el proyecto:
 pnpm install
 # correr server local
 pnpm dev
-# or
+# o
 npm install
 # correr server local
 npm run dev

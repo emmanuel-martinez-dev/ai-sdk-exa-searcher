@@ -6,13 +6,25 @@ import { StreamingResultCard, type StreamingResult } from "./streaming-result-ca
 import { ResultSkeleton } from "./result-skeleton"
 import type { StreamingState } from "./streaming-engine"
 
+interface ExaSearchResult {
+  id: string
+  title: string
+  url: string
+  publishedDate: string
+  author: string
+  text?: string
+  summary?: string
+  image?: string
+  favicon?: string
+}
+
 interface Message {
   id: string
   content: string
   type: "user" | "system"
   completed?: boolean
   newSection?: boolean
-  searchResults?: any[]
+  searchResults?: ExaSearchResult[]
   error?: string
 }
 
@@ -22,7 +34,6 @@ interface MessageRendererProps {
   streamingState: StreamingState
   currentStreamingResults: StreamingResult[]
   shouldShowSkeleton: boolean
-  completedMessages: Set<string>
 }
 
 export const MessageRenderer = React.memo(({
@@ -30,10 +41,8 @@ export const MessageRenderer = React.memo(({
   streamingMessageId,
   streamingState,
   currentStreamingResults,
-  shouldShowSkeleton,
-  completedMessages
+  shouldShowSkeleton
 }: MessageRendererProps) => {
-  const isCompleted = completedMessages.has(message.id)
   const isStreamingMessage = message.id === streamingMessageId
 
   return (

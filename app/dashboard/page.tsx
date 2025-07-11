@@ -12,6 +12,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { SiteHeader } from "@/components/dashboard/site-header"
 import { generateTitles } from "@/actions/vercel-actions/generate-titles"
 import { useChat } from 'ai/react'
+import { toast } from "sonner"
 import {
   FileText,
   Sparkles,
@@ -60,7 +61,7 @@ export default function Page() {
   const [isGeneratingTitles, setIsGeneratingTitles] = useState(false)
   const [generatedTitles, setGeneratedTitles] = useState<Array<{title: string, reason: string}>>([])
   const [showTitlesPanel, setShowTitlesPanel] = useState(false)
-  const [titleCount] = useState(5)
+  const [titleCount, setTitleCount] = useState(5)
   const [selectedTitle, setSelectedTitle] = useState<string | null>(null)
   
   // Opciones de tono
@@ -181,6 +182,21 @@ export default function Page() {
 
   const handleSelectTitle = (title: string) => {
     setSelectedTitle(title)
+  }
+
+  const handleCopyTitle = async (title: string) => {
+    try {
+      await navigator.clipboard.writeText(title)
+      toast.success("Título copiado al portapapeles", {
+        description: title.length > 50 ? `${title.substring(0, 50)}...` : title,
+        duration: 3000,
+      })
+    } catch (error) {
+      toast.error("Error al copiar el título", {
+        description: "No se pudo copiar al portapapeles",
+        duration: 3000,
+      })
+    }
   }
 
   const handleStartEdit = () => {
@@ -488,6 +504,24 @@ export default function Page() {
                             )}
                           </CardTitle>
                           <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2">
+                              <Label className="text-sm font-medium whitespace-nowrap">Cantidad:</Label>
+                              <Select 
+                                value={titleCount.toString()} 
+                                onValueChange={(value) => setTitleCount(parseInt(value))}
+                                disabled={isGeneratingTitles}
+                              >
+                                <SelectTrigger className="w-20 h-8">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="3">3</SelectItem>
+                                  <SelectItem value="5">5</SelectItem>
+                                  <SelectItem value="7">7</SelectItem>
+                                  <SelectItem value="10">10</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
                             <Button
                               variant="outline"
                               size="sm"
@@ -496,11 +530,14 @@ export default function Page() {
                               className="px-4 py-2 h-auto"
                             >
                               {isGeneratingTitles ? (
-                                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                <>
+                                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                  Generando...
+                                </>
                               ) : (
                                 <>
                                   <Wand2 className="h-4 w-4 mr-2" />
-                                  Títulos IA
+                                  Generar {titleCount} Títulos
                                 </>
                               )}
                             </Button>
@@ -549,7 +586,7 @@ export default function Page() {
                               <div className="flex items-center justify-between">
                                 <CardTitle className="flex items-center gap-3 text-lg">
                                   <Wand2 className="h-5 w-5 text-purple-600" />
-                                  Títulos alternativos generados
+                                  Títulos alternativos generados ({generatedTitles.length})
                                 </CardTitle>
                                 <Button
                                   variant="ghost"
@@ -562,19 +599,38 @@ export default function Page() {
                               </div>
                             </CardHeader>
                             <CardContent className="space-y-3">
+                              <p className="text-sm text-gray-600 italic mb-4">
+                                💡 Haz clic en cualquier título para copiarlo al portapapeles
+                              </p>
                               {generatedTitles.map((titleData, index) => (
                                 <div
                                   key={index}
-                                  className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                                  className={`p-3 rounded-lg border-2 cursor-pointer transition-all group ${
                                     selectedTitle === titleData.title
                                       ? 'border-purple-400 bg-purple-100'
                                       : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50'
                                   }`}
-                                  onClick={() => handleSelectTitle(titleData.title)}
+                                  onClick={() => {
+                                    handleSelectTitle(titleData.title)
+                                    handleCopyTitle(titleData.title)
+                                  }}
+                                  title="Haz clic para copiar al portapapeles"
                                 >
                                   <div className="space-y-2">
-                                    <h4 className="font-medium text-gray-900">{titleData.title}</h4>
+                                    <div className="flex items-start justify-between gap-2">
+                                      <h4 className="font-medium text-gray-900 flex-1">{titleData.title}</h4>
+                                      <Copy className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                                    </div>
                                     <p className="text-sm text-gray-600">{titleData.reason}</p>
+                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                      <span>{titleData.title.length} caracteres</span>
+                                      <span>•</span>
+                                      <span>
+                                        {titleData.title.length <= 60 ? '✓ Óptimo para SEO' : 
+                                         titleData.title.length <= 80 ? '⚠ Largo para SEO' : 
+                                         '❌ Muy largo'}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
                               ))}

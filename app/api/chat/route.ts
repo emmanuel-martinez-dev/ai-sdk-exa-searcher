@@ -20,7 +20,6 @@ export async function POST(req: Request) {
         const lastMessage = messages[messages.length - 1]
 
         if (lastMessage.content === 'generate_article') {
-            console.log('Generando artículo con datos:', articleData.title) // Debug
 
             // Usar el server action existente
             const result = await generateArticle(articleData, options || {})

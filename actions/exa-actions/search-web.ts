@@ -88,9 +88,6 @@ export async function askExa(query: string): Promise<ExaSearchResponse> {
             results: filteredResults
         };
 
-        console.log(`Resultados originales: ${data.results.length}, Resultados filtrados: ${filteredResults.length}`);
-
-        console.log(filteredResponse)
         return filteredResponse;
     } catch (error) {
         console.error('Error al buscar en Exa:', error);

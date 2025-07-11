@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { useState, useRef, useEffect, useCallback, useMemo } from "react"
+import { useState, useRef, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { askExa } from "@/actions/exa-actions/search-web"
 import { Header } from "./header"
@@ -41,7 +41,7 @@ export default function ChatInterface() {
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null)
   const [viewportHeight, setViewportHeight] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const [completedMessages, setCompletedMessages] = useState<Set<string>>(new Set())
+  // const [completedMessages, setCompletedMessages] = useState<Set<string>>(new Set())
   const inputContainerRef = useRef<HTMLDivElement>(null)
   const shouldFocusAfterStreamingRef = useRef(false)
   const mainContainerRef = useRef<HTMLDivElement>(null)
@@ -56,7 +56,6 @@ export default function ChatInterface() {
     currentStreamingResults,
     shouldShowSkeleton,
     simulateProgressiveStreaming,
-    resetStreaming
   } = useStreamingEngine()
 
   // Constantes para el layout, considerando los valores de padding
@@ -142,7 +141,6 @@ export default function ChatInterface() {
     if (currentSection.messages.length > 0) {
       sections.push(currentSection)
     }
-    console.log(JSON.stringify(sections, null, 2))
     setMessageSections(sections)
   }, [messages])
 
@@ -173,7 +171,6 @@ export default function ChatInterface() {
   // Cuando el streaming de la respuesta termina, seteo el cursor del usuario al textarea
   useEffect(() => {
     if (!isStreaming && shouldFocusAfterStreamingRef.current && !isMobile) {
-      focusTextarea()
       shouldFocusAfterStreamingRef.current = false
     }
   }, [isStreaming, isMobile])
@@ -233,42 +230,6 @@ export default function ChatInterface() {
         textareaRef.current.focus()
       }
     }
-  }
-
-  // Función para formatear los resultados de Exa en texto legible
-  const formatExaResults = (results: any[]) => {
-    if (!results || results.length === 0) {
-      return "No se encontraron resultados para tu búsqueda."
-    }
-
-    let formattedText = `Encontré ${results.length} resultado${results.length > 1 ? 's' : ''} relevante${results.length > 1 ? 's' : ''}:\n\n`
-
-    results.forEach((result, index) => {
-      formattedText += `${index + 1}. **${result.title}**\n`
-      
-      if (result.author) {
-        formattedText += `   Autor: ${result.author}\n`
-      }
-      
-      if (result.publishedDate) {
-        const date = new Date(result.publishedDate).toLocaleDateString('es-AR')
-        formattedText += `   Fecha: ${date}\n`
-      }
-      
-      if (result.summary) {
-        formattedText += `   Resumen: ${result.summary}\n`
-      } else if (result.text) {
-        // Si no hay resumen, usa los primeros 200 caracteres del texto
-        const preview = result.text.substring(0, 200) + (result.text.length > 200 ? '...' : '')
-        formattedText += `   Contenido: ${preview}\n`
-      }
-      
-      formattedText += `   URL: ${result.url}\n`
-      
-      formattedText += '\n'
-    })
-
-    return formattedText
   }
 
   const handleExaSearch = async (userMessage: string) => {
@@ -339,7 +300,7 @@ export default function ChatInterface() {
     }
 
     // Agrega a mensajes completados para prevenir re-animación
-    setCompletedMessages((prev) => new Set(prev).add(messageId))
+    // setCompletedMessages((prev) => new Set(prev).add(messageId))
 
     // Resetea estado de streaming
     setStreamingWords([])
@@ -505,7 +466,6 @@ export default function ChatInterface() {
                         streamingState={streamingState}
                         currentStreamingResults={currentStreamingResults}
                         shouldShowSkeleton={shouldShowSkeleton}
-                        completedMessages={completedMessages}
                       />
                     ))}
                   </div>
@@ -521,7 +481,6 @@ export default function ChatInterface() {
                         streamingState={streamingState}
                         currentStreamingResults={currentStreamingResults}
                         shouldShowSkeleton={shouldShowSkeleton}
-                        completedMessages={completedMessages}
                       />
                     ))}
                   </div>
