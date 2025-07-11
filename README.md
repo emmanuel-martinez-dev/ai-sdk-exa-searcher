@@ -2,8 +2,8 @@
 
 Agregá estas variables de entorno en el proyecto.
 
-Generá tu Exa api key (acá)(https://dashboard.exa.ai/login?redirect=/api-keys).
-Generá tu OpenAI api key (acá)(https://platform.openai.com/settings/organization/api-keys).
+Generá tu Exa api key [acá](https://dashboard.exa.ai/login?redirect=/api-keys).
+Generá tu OpenAI api key [acá](https://platform.openai.com/settings/organization/api-keys).
 
 ```bash
 EXA_API_KEY=
@@ -44,4 +44,3 @@ Abrí [http://localhost:3000](http://localhost:3000) en tu browser para ver el r
 - Todas las opciones de Exa: agregar el crawling, answer y research de la API de Exa.
 - Memoria e historial de chat, agregar memoria/historial de chat para Exa, para mejorar la conversacion en el chat y lograr un flujo de conversacion como en Perplexity, por ejemplo.
 - Botón de feedback: agregar un botón que abra un dialog de shadcn/ui donde los usuarios puedan proponer mejoras o reportar erores.
-
