@@ -1,25 +1,43 @@
 ## Gotham.ai - motor de búsqueda IA.
 
-First, run the development server:
-```bash
-EXA_API_KEY=your_exa_api_key_here
+Agregá estas variables de entorno en el proyecto.
 
-OPENAI_API_KEY=your_openai_api_key_here
+Generá tu Exa api key (acá)(https://dashboard.exa.ai/login?redirect=/api-keys).
+Generá tu OpenAI api key (acá)(https://platform.openai.com/settings/organization/api-keys).
+
+```bash
+EXA_API_KEY=
+
+OPENAI_API_KEY=
 ```
 
+Instalar y correr el proyecto:
 ```bash
 pnpm install
-# run local server
+# correr server local
 pnpm dev
 # or
 npm install
-# run local server
+# correr server local
 npm run dev
 ```
 
 Abrí [http://localhost:3000](http://localhost:3000) en tu browser para ver el resultado.
 
-# Mejoras futuras:
+## Stack:
+- Next.js v15
+- Tailwind CSS v4
+- Shadcn/ui
+- ai-sdk
+
+## Server y Client components
+- Server actions de Exa y ai-sdk.
+- En actions/exa-actions esta el server action search-web.ts para buscar un tema usando Exa.
+- En actions/vercel-actions esta el server action generate-article.ts.
+- En app/dashboard/pages.tsx se usa el hook useChat() apuntando al app/api/chat.route.tsx, este ultimo archivo llama al server action generate-article.ts.
+- El [dashboard](https://ui.shadcn.com/blocks) fue instalado usando el comando pnpm dlx shadcn@latest dashboard-01.
+
+## Mejoras futuras:
 
 - Base de datos relacional: para persistir articulos generados por los usuarios, usaria algun servicio Postgres serverless como [NeonDB](https://neon.tech) o [Supabase](https://supabase.com).
 - Autenticacion: agregar autenticacion para mejorar la seguridad en produccion, usaría [better-auth](https://better-auth.com), [auth0](https://auth0.com) o [clerk](https://clerk.com).
