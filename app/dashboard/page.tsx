@@ -192,6 +192,7 @@ export default function Page() {
         duration: 3000,
       })
     } catch (error) {
+      console.error('Error al copiar el título:', error)
       toast.error("Error al copiar el título", {
         description: "No se pudo copiar al portapapeles",
         duration: 3000,
