@@ -155,7 +155,7 @@ export const Chat = ({
                           <h3 className="font-semibold text-gray-900">Preguntar</h3>
                         </div>
                         <p className="text-sm text-gray-600 leading-relaxed">
-                          Respuestas rápidas con información en tiempo real y tiempos de respuesta optimizados.
+                        Pronto.
                         </p>
                         <div
                           className={cn(
@@ -206,7 +206,7 @@ export const Chat = ({
                           <h3 className="font-semibold text-gray-900">Crawling</h3>
                         </div>
                         <p className="text-sm text-gray-600 leading-relaxed">
-                          Devuelve contenido de páginas web específicas extrayendo datos de URLs particulares.
+                          Pronto.
                         </p>
                         <div
                           className={cn(
@@ -258,13 +258,10 @@ export const Chat = ({
                           </div>
                           <div>
                             <h3 className="font-semibold text-gray-900">Investigación</h3>
-                            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">
-                              BETA
-                            </span>
                           </div>
                         </div>
                         <p className="text-sm text-gray-600 leading-relaxed">
-                          Capacidades de investigación profunda para reportes completos y resultados estructurados.
+                        Pronto.
                         </p>
                         <div
                           className={cn(
